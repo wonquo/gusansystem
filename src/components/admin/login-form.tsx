@@ -18,7 +18,7 @@ export function LoginForm() {
       <section className="w-full max-w-[388px]">
         <div className="mb-7 flex flex-col items-center text-center">
           <div className="mb-4 flex size-14 items-center justify-center rounded-lg border border-[#dbe3ed] bg-white shadow-[0_10px_24px_rgba(16,32,51,0.08)]">
-            <Image src="/logo.svg" alt="거산시스템 로고" width={42} height={42} priority />
+            <Image src="/logo.png" alt="거산시스템 로고" width={42} height={42} priority />
           </div>
           <h1 className="text-[1.65rem] font-semibold leading-tight tracking-normal">GUSAN ERP</h1>
         </div>

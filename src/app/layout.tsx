@@ -16,7 +16,7 @@ export const metadata: Metadata = {
   title: "GUSAN ERP",
   description: "거산시스템 ERP",
   icons: {
-    icon: "/logo.svg",
+    icon: "/logo.png",
   },
 };
 

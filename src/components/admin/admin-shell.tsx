@@ -394,7 +394,7 @@ function Sidebar({
       )}
     >
       <div className="grid size-9 shrink-0 place-items-center overflow-hidden rounded-md bg-white shadow-md shadow-blue-950/20">
-        <Image src="/logo.svg" alt="거산시스템 로고" width={36} height={36} priority />
+        <Image src="/logo.png" alt="거산시스템 로고" width={36} height={36} priority />
       </div>
       {!collapsed ? (
         <div className="min-w-0">
