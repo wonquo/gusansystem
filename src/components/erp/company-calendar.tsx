@@ -37,6 +37,7 @@ import type {
 } from "@/lib/types";
 
 const CATEGORIES: CalendarEventCategory[] = ["휴가", "출장", "회의", "교육", "외근", "기타"];
+const MAX_VISIBLE_LANES = 3;
 const MONTH_OPTIONS = Array.from({ length: 12 }, (_, index) => ({
   label: `${index + 1}월`,
   value: index,
@@ -245,24 +246,62 @@ export function CompanyCalendar({
   const miniMonthCells = useMemo(() => buildMonthCells(visibleMonth), [visibleMonth]);
   const visibleCategorySet = useMemo(() => new Set(visibleCategories), [visibleCategories]);
 
-  const eventsByDate = useMemo(() => {
-    return events.reduce<Record<string, CalendarEventRow[]>>((grouped, event) => {
-      if (!visibleCategorySet.has(event.category)) {
-        return grouped;
+  // 연결된(여러 날 이어지는) 일정이 어느 날에서도 같은 행(레인)에 표시되도록
+  // 일정마다 고정 레인을 부여한다. 기간이 길수록 위쪽 레인을 차지한다.
+  const laneEventsByDate = useMemo(() => {
+    const visibleEvents = events.filter((event) => visibleCategorySet.has(event.category));
+
+    const sortedEvents = [...visibleEvents].sort((a, b) => {
+      const aSpan = enumerateEventDates(a).length;
+      const bSpan = enumerateEventDates(b).length;
+      if (aSpan !== bSpan) {
+        return bSpan - aSpan;
       }
 
+      const aStart = a.startDate || a.eventDate;
+      const bStart = b.startDate || b.eventDate;
+      if (aStart !== bStart) {
+        return aStart.localeCompare(bStart);
+      }
+
+      return `${a.startTime}${a.title}`.localeCompare(`${b.startTime}${b.title}`);
+    });
+
+    const occupiedLanes: Record<string, Set<number>> = {};
+    const laneByEvent = new Map<string, number>();
+
+    for (const event of sortedEvents) {
+      const dates = enumerateEventDates(event);
+      let lane = 0;
+      while (dates.some((dateValue) => occupiedLanes[dateValue]?.has(lane))) {
+        lane += 1;
+      }
+
+      for (const dateValue of dates) {
+        (occupiedLanes[dateValue] ??= new Set()).add(lane);
+      }
+      laneByEvent.set(event.id, lane);
+    }
+
+    const byDate: Record<string, (CalendarEventRow | null)[]> = {};
+    for (const event of sortedEvents) {
+      const lane = laneByEvent.get(event.id) ?? 0;
       for (const dateValue of enumerateEventDates(event)) {
-        grouped[dateValue] = [...(grouped[dateValue] ?? []), event].sort((a, b) => {
-          if (a.allDay !== b.allDay) {
-            return a.allDay ? -1 : 1;
-          }
-
-          return `${a.startTime}${a.title}`.localeCompare(`${b.startTime}${b.title}`);
-        });
+        const lanes = (byDate[dateValue] ??= []);
+        lanes[lane] = event;
       }
+    }
 
-      return grouped;
-    }, {});
+    for (const dateValue of Object.keys(byDate)) {
+      const lanes = byDate[dateValue];
+      for (let index = 0; index < lanes.length; index += 1) {
+        if (lanes[index] === undefined) {
+          lanes[index] = null;
+        }
+      }
+    }
+
+    return byDate;
   }, [events, visibleCategorySet]);
 
   const filteredAttendeeOptions = useMemo(() => {
@@ -541,7 +580,11 @@ export function CompanyCalendar({
               ))}
 
               {monthCells.map((cell) => {
-                const dayEvents = eventsByDate[cell.dateValue] ?? [];
+                const dayLanes = laneEventsByDate[cell.dateValue] ?? [];
+                const visibleLanes = dayLanes.slice(0, MAX_VISIBLE_LANES);
+                const overflowCount = dayLanes
+                  .slice(MAX_VISIBLE_LANES)
+                  .filter(Boolean).length;
 
                 return (
                   <div
@@ -565,7 +608,19 @@ export function CompanyCalendar({
                       {cell.date.getDate()}
                     </button>
                     <span className="mt-1 grid gap-1">
-                      {dayEvents.slice(0, 2).map((event) => {
+                      {visibleLanes.map((event, laneIndex) => {
+                        if (!event) {
+                          return (
+                            <span
+                              aria-hidden
+                              className="block px-2 py-1 text-xs leading-tight"
+                              key={`lane-empty-${laneIndex}`}
+                            >
+                              {"\u00a0"}
+                            </span>
+                          );
+                        }
+
                         const spanPosition = getEventSpanPosition(event, cell.dateValue);
 
                         return (
@@ -598,9 +653,9 @@ export function CompanyCalendar({
                           </button>
                         );
                       })}
-                      {dayEvents.length > 2 ? (
+                      {overflowCount > 0 ? (
                         <span className="rounded-md bg-[#eef5ff] px-2 py-0.5 text-xs font-bold text-[#2363c7]">
-                          +{dayEvents.length - 2}
+                          +{overflowCount}
                         </span>
                       ) : null}
                     </span>

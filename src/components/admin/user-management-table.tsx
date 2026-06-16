@@ -1,16 +1,15 @@
 "use client";
 
 import { FormEvent, useMemo, useState, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import { AgGridReact } from "ag-grid-react";
 import {
   AllCommunityModule,
   ModuleRegistry,
   type ColDef,
-  type GridReadyEvent,
   type ICellRendererParams,
-  type SelectionChangedEvent,
 } from "ag-grid-community";
-import { Loader2, Pencil, Plus, RefreshCw, Search, Trash2 } from "lucide-react";
+import { Loader2, Plus, RefreshCw, Search, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -115,8 +114,8 @@ export function UserManagementTable({
   initialUsers: AppUserRow[];
   currentUserId: string;
 }) {
+  const router = useRouter();
   const [users, setUsers] = useState(initialUsers);
-  const [selectedUser, setSelectedUser] = useState<AppUserRow | null>(initialUsers[0] ?? null);
   const [draftFilters, setDraftFilters] = useState<UserFilters>(initialFilters);
   const [appliedFilters, setAppliedFilters] = useState<UserFilters>(initialFilters);
   const [createForm, setCreateForm] = useState<CreateUserForm>(initialCreateForm);
@@ -236,16 +235,6 @@ export function UserManagementTable({
     [],
   );
 
-  function onGridReady(event: GridReadyEvent<AppUserRow>) {
-    if (filteredUsers.length) {
-      event.api.getDisplayedRowAtIndex(0)?.setSelected(true);
-    }
-  }
-
-  function onSelectionChanged(event: SelectionChangedEvent<AppUserRow>) {
-    setSelectedUser(event.api.getSelectedRows()[0] ?? null);
-  }
-
   function applyFilters() {
     setAppliedFilters(draftFilters);
   }
@@ -289,9 +278,9 @@ export function UserManagementTable({
     }
 
     setUsers((current) => [data.user, ...current]);
-    setSelectedUser(data.user);
     setCreateForm(initialCreateForm);
     setIsCreateOpen(false);
+    router.refresh();
   }
 
   async function saveEditedUser(event: FormEvent<HTMLFormElement>) {
@@ -327,6 +316,7 @@ export function UserManagementTable({
 
     mergeUser(editForm.id, data.user);
     setEditForm(null);
+    router.refresh();
   }
 
   async function deleteUser(user: Pick<AppUserRow, "id" | "name">) {
@@ -353,27 +343,21 @@ export function UserManagementTable({
       return;
     }
 
-    setUsers((current) => {
-      const nextUsers = current.filter((currentUser) => currentUser.id !== user.id);
-      setSelectedUser((currentSelected) =>
-        currentSelected?.id === user.id ? (nextUsers[0] ?? null) : currentSelected,
-      );
-      return nextUsers;
-    });
+    setUsers((current) => current.filter((currentUser) => currentUser.id !== user.id));
     if (editForm?.id === user.id) {
       setEditForm(null);
     }
+    router.refresh();
   }
 
   function mergeUser(id: string, patch: Partial<AppUserRow>) {
     setUsers((current) =>
       current.map((user) => (user.id === id ? { ...user, ...patch } : user)),
     );
-    setSelectedUser((current) => (current?.id === id ? { ...current, ...patch } : current));
   }
 
   return (
-    <div className="crm-erp-surface mx-auto grid min-h-[calc(100vh-9rem)] max-w-[1680px] gap-3 xl:grid-cols-[minmax(0,1fr)_360px]">
+    <div className="crm-erp-surface mx-auto min-h-[calc(100vh-9rem)] max-w-[1680px]">
       <section className="min-w-0 space-y-3">
         <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
           <h1 className="text-base font-semibold tracking-tight text-[#0d1b3d]">사용자 목록</h1>
@@ -485,8 +469,6 @@ export function UserManagementTable({
               rowSelection="single"
               animateRows={false}
               theme="legacy"
-              onGridReady={onGridReady}
-              onSelectionChanged={onSelectionChanged}
               defaultColDef={{
                 minWidth: 100,
                 sortable: true,
@@ -500,48 +482,6 @@ export function UserManagementTable({
           </div>
         </div>
       </section>
-
-      <aside className="min-w-0 overflow-hidden rounded-lg border border-[#d8e0ea] bg-white shadow-[0_8px_26px_rgba(15,28,48,0.05)] xl:sticky xl:top-4 xl:self-start">
-        <div className="flex items-center justify-between gap-2 border-b border-[#d8e0ea] bg-[#f8fafc] px-4 py-3">
-          <p className="text-sm font-semibold text-[#0d1b3d]">상세 정보</p>
-          {selectedUser ? (
-            <div className="flex items-center gap-2">
-              <Button type="button" variant="outline" size="sm" onClick={() => openEditDialog(selectedUser)}>
-                <Pencil className="size-3.5" />
-                수정
-              </Button>
-              <Button
-                type="button"
-                variant="destructive"
-                size="sm"
-                onClick={() => deleteUser(selectedUser)}
-                disabled={selectedUser.id === currentUserId || isDeletingId === selectedUser.id}
-              >
-                {isDeletingId === selectedUser.id ? (
-                  <Loader2 className="size-3.5 animate-spin" />
-                ) : (
-                  <Trash2 className="size-3.5" />
-                )}
-                삭제
-              </Button>
-            </div>
-          ) : null}
-        </div>
-        {selectedUser ? (
-          <div className="grid gap-px bg-[#edf1f6] p-px text-sm text-[#33415c]">
-            <DetailRow label="이름" value={selectedUser.name} />
-            <DetailRow label="사원코드" value={selectedUser.employeeCode || "-"} mono />
-            <DetailRow label="로그인 ID" value={selectedUser.loginId} mono />
-            <DetailRow label="이메일" value={selectedUser.email} />
-            <DetailRow label="역할" value={roleLabels[selectedUser.role]} />
-            <DetailRow label="상태" value={statusLabels[selectedUser.status]} />
-            <DetailRow label="최근 로그인" value={formatDateTime(selectedUser.lastLoginAt)} mono />
-            <DetailRow label="생성일" value={formatDateTime(selectedUser.createdAt)} mono />
-          </div>
-        ) : (
-          <p className="px-4 py-6 text-sm text-[#7b8798]">행을 선택하면 상세 정보가 표시됩니다.</p>
-        )}
-      </aside>
 
       <Dialog open={Boolean(editForm)} onOpenChange={(open) => !open && setEditForm(null)}>
         <DialogContent className="max-h-[86vh] overflow-y-auto sm:max-w-md">
@@ -742,19 +682,6 @@ function FilterLabel({ children }: { children: ReactNode }) {
   return (
     <div className="flex items-center bg-[#f2f5f9] px-3 py-2 text-[11px] font-semibold whitespace-nowrap text-[#69758a]">
       {children}
-    </div>
-  );
-}
-
-function DetailRow({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
-  return (
-    <div className="grid min-h-10 grid-cols-[104px_minmax(0,1fr)] bg-white text-left text-xs">
-      <div className="flex items-center border-r border-[#edf1f6] bg-[#f8fafc] px-3 font-semibold text-[#69758a]">
-        {label}
-      </div>
-      <div className={`min-w-0 px-3 py-2 text-[#17233b] ${mono ? "font-mono" : ""}`}>
-        <span className="block truncate">{value}</span>
-      </div>
     </div>
   );
 }

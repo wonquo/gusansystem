@@ -2,7 +2,18 @@ import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { getDb, hasDatabaseUrl } from "@/db";
-import { appUsers, employees } from "@/db/schema";
+import {
+  appUsers,
+  boardComments,
+  boardPosts,
+  calendarEvents,
+  customerActivities,
+  customers,
+  employees,
+  importBatches,
+  noticeComments,
+  notices,
+} from "@/db/schema";
 import { canManageUsers, getCurrentAppUser, serializeUser } from "@/lib/auth";
 import { normalizeProfileImageUrl } from "@/lib/profile-image";
 
@@ -167,12 +178,28 @@ export async function DELETE(
     }
 
     const db = getDb();
-    await db
-      .update(employees)
-      .set({ userId: null, updatedAt: new Date() })
-      .where(eq(employees.userId, id));
+    const now = new Date();
 
-    const [deleted] = await db.delete(appUsers).where(eq(appUsers.id, id)).returning({ id: appUsers.id });
+    // FK 제약(ON DELETE 정책)이 환경마다 다를 수 있으므로, 사용자 계정을 참조하는
+    // 모든 행의 참조를 먼저 해제한 뒤 삭제한다. neon-http 드라이버는 interactive
+    // transaction을 지원하지 않으므로 batch로 한 번에 원자적으로 실행한다.
+    const [, , , , , , , , , deletedRows] = await db.batch([
+      db.update(employees).set({ userId: null, updatedAt: now }).where(eq(employees.userId, id)),
+      db
+        .update(customers)
+        .set({ assignedUserId: null, updatedAt: now })
+        .where(eq(customers.assignedUserId, id)),
+      db.update(customerActivities).set({ createdBy: null }).where(eq(customerActivities.createdBy, id)),
+      db.update(notices).set({ createdBy: null }).where(eq(notices.createdBy, id)),
+      db.update(noticeComments).set({ createdBy: null }).where(eq(noticeComments.createdBy, id)),
+      db.update(boardPosts).set({ createdBy: null }).where(eq(boardPosts.createdBy, id)),
+      db.update(boardComments).set({ createdBy: null }).where(eq(boardComments.createdBy, id)),
+      db.update(calendarEvents).set({ createdBy: null }).where(eq(calendarEvents.createdBy, id)),
+      db.update(importBatches).set({ importedBy: null }).where(eq(importBatches.importedBy, id)),
+      db.delete(appUsers).where(eq(appUsers.id, id)).returning({ id: appUsers.id }),
+    ]);
+
+    const deleted = deletedRows[0];
     if (!deleted) {
       return NextResponse.json({ error: "사용자를 찾을 수 없습니다." }, { status: 404 });
     }
