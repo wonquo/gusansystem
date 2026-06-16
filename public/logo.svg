@@ -1,0 +1,31 @@
+<svg viewBox="0 0 300 290" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="거산시스템 로고">
+  <defs>
+    <clipPath id="gusanTri">
+      <path d="M162.52 50.04 L252.48 229.96 Q265 255 237 255 L63 255 Q35 255 47.52 229.96 L137.48 50.04 Q150 25 162.52 50.04 Z"/>
+    </clipPath>
+  </defs>
+
+  <!-- color segments, clipped to the rounded triangle -->
+  <g clip-path="url(#gusanTri)">
+    <!-- red: top -->
+    <path d="M150 178.33 L-1575 -971.67 L150 -5000 L1875 -971.67 Z" fill="#ED1C24"/>
+    <!-- yellow: lower-left -->
+    <path d="M150 178.33 L-1575 -971.67 L-5000 5000 L150 2478 Z" fill="#FFE600"/>
+    <!-- blue: lower-right -->
+    <path d="M150 178.33 L1875 -971.67 L5000 5000 L150 2478 Z" fill="#1F31C4"/>
+  </g>
+
+  <!-- divider lines (hidden under the center circle near the middle) -->
+  <g stroke="#000" stroke-width="8" stroke-linecap="round">
+    <line x1="150" y1="178.33" x2="92.5" y2="140"/>
+    <line x1="150" y1="178.33" x2="207.5" y2="140"/>
+    <line x1="150" y1="178.33" x2="150" y2="255"/>
+  </g>
+
+  <!-- white center hole -->
+  <circle cx="150" cy="178.33" r="56" fill="#ffffff" stroke="#000" stroke-width="8"/>
+
+  <!-- outer rounded-triangle outline -->
+  <path d="M162.52 50.04 L252.48 229.96 Q265 255 237 255 L63 255 Q35 255 47.52 229.96 L137.48 50.04 Q150 25 162.52 50.04 Z"
+        fill="none" stroke="#000" stroke-width="9" stroke-linejoin="round"/>
+</svg>
