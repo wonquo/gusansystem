@@ -1,0 +1,1 @@
+CREATE INDEX "customers_assigned_updated_idx" ON "customers" USING btree ("assigned_user_id","updated_at");

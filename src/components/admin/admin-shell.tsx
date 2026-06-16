@@ -1,0 +1,482 @@
+"use client";
+
+import Image from "next/image";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { FormEvent, useState, useTransition } from "react";
+import {
+  Bell,
+  BookOpenText,
+  CalendarDays,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  CircleHelp,
+  ClipboardList,
+  FileClock,
+  FileSpreadsheet,
+  FolderKanban,
+  Home,
+  ImageIcon,
+  Inbox,
+  LogOut,
+  Menu,
+  ReceiptText,
+  ShieldCheck,
+  Settings,
+  Star,
+  UserCircle,
+  UsersRound,
+  WalletCards,
+} from "lucide-react";
+import { logoutAction } from "@/lib/actions";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Sheet, SheetClose, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { cn } from "@/lib/utils";
+import type { AppUserRow } from "@/lib/types";
+
+const navItems = [
+  { href: "/dashboard", label: "대시보드", icon: Home },
+  { href: "/board", label: "게시판", icon: BookOpenText },
+  { href: "/calendar", label: "캘린더", icon: CalendarDays },
+  { href: "/projects", label: "프로젝트 관리", icon: FolderKanban, adminOnly: true },
+  { href: "/tax-invoices", label: "전자세금계산서", icon: ReceiptText, adminOnly: true },
+  { href: "/bank", label: "법인통장", icon: WalletCards, adminOnly: true },
+  { href: "/payroll", label: "급여대장", icon: ClipboardList, adminOnly: true },
+  { href: "/my-payroll", label: "내 급여명세서", icon: FileSpreadsheet },
+  { href: "/imports", label: "업로드 이력", icon: FileClock, adminOnly: true },
+  { href: "/users", label: "사용자 목록", icon: UsersRound, adminOnly: true },
+  { href: "/permissions", label: "권한 관리", icon: Settings, adminOnly: true },
+];
+
+export function AdminShell({
+  user,
+  children,
+}: {
+  user: AppUserRow;
+  children: React.ReactNode;
+}) {
+  const pathname = usePathname();
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [displayUser, setDisplayUser] = useState(user);
+  const sidebarWidth = isCollapsed ? "lg:pl-[84px]" : "lg:pl-[184px]";
+  const currentTitle =
+    navItems.find((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))?.label ??
+    "GUSAN ERP";
+
+  return (
+    <div className="min-h-screen bg-[#f7f9fc] text-[#0d1b3d]">
+      <aside
+        className={cn(
+          "fixed inset-y-0 left-0 hidden border-r border-[#e6ecf3] bg-white text-[#0d1b3d] shadow-[16px_0_44px_rgba(15,28,48,0.06)] transition-all duration-200 lg:block",
+          isCollapsed ? "w-[84px]" : "w-[184px]",
+        )}
+      >
+        <Sidebar collapsed={isCollapsed} pathname={pathname} user={displayUser} />
+      </aside>
+      <div className={cn("transition-[padding] duration-200", sidebarWidth)}>
+        <header className="sticky top-0 z-30 border-b border-[#d8e0ea] bg-white/92 backdrop-blur-xl">
+          <div className="flex h-14 items-center gap-3 px-4 md:px-5">
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="icon" className="lg:hidden" aria-label="메뉴 열기">
+                  <Menu className="size-5" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent
+                side="left"
+                showCloseButton={false}
+                className="w-[184px] border-0 bg-white p-0 text-[#0d1b3d]"
+              >
+                <Sidebar collapsed={false} pathname={pathname} user={displayUser} mobile />
+              </SheetContent>
+            </Sheet>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="hidden text-[#0d1b3d] hover:bg-[#eef4fb] lg:inline-flex"
+              aria-label={isCollapsed ? "메뉴 펼치기" : "메뉴 접기"}
+              onClick={() => setIsCollapsed((current) => !current)}
+            >
+              {isCollapsed ? <ChevronRight className="size-5" /> : <Menu className="size-5" />}
+            </Button>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold text-[#0d1b3d]">{currentTitle}</p>
+            </div>
+            <div className="ml-auto flex items-center gap-1 text-[#0d1b3d] md:gap-2">
+              <HeaderIcon label="알림">
+                <Bell className="size-5" />
+              </HeaderIcon>
+              <HeaderIcon label="메일" badge="12">
+                <Inbox className="size-5" />
+              </HeaderIcon>
+              <HeaderIcon label="즐겨찾기">
+                <Star className="size-5" />
+              </HeaderIcon>
+              <HeaderIcon label="도움말">
+                <CircleHelp className="size-5" />
+              </HeaderIcon>
+              <AccountMenu user={displayUser} onUserChange={setDisplayUser} />
+            </div>
+          </div>
+        </header>
+        <main className="min-h-[calc(100vh-3.5rem-1px)] px-4 py-3 md:px-6">{children}</main>
+      </div>
+    </div>
+  );
+}
+
+function AccountMenu({
+  user,
+  onUserChange,
+}: {
+  user: AppUserRow;
+  onUserChange: (user: AppUserRow) => void;
+}) {
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [form, setForm] = useState({
+    name: user.name,
+    email: user.email,
+    profileImageUrl: user.profileImageUrl ?? "",
+  });
+  const [error, setError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  function openProfileDialog() {
+    setForm({
+      name: user.name,
+      email: user.email,
+      profileImageUrl: user.profileImageUrl ?? "",
+    });
+    setError(null);
+    setIsProfileOpen(true);
+  }
+
+  function saveProfile(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+
+    startTransition(async () => {
+      const response = await fetch("/api/me", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.error ?? "프로필을 저장하지 못했습니다.");
+        return;
+      }
+
+      onUserChange(data.user);
+      setIsProfileOpen(false);
+    });
+  }
+
+  return (
+    <Dialog open={isProfileOpen} onOpenChange={setIsProfileOpen}>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            className="ml-1 h-10 gap-2 border-l border-[#e1e7f0] pl-3 pr-2 text-[#0d1b3d] hover:bg-[#eef4fb] sm:ml-2 sm:pl-4"
+            aria-label="계정 메뉴 열기"
+          >
+            <Avatar user={user} className="size-9" />
+            <span className="hidden min-w-0 text-left sm:block">
+              <span className="block max-w-28 truncate text-sm font-semibold">{user.name}</span>
+              <span className="block max-w-28 truncate text-xs font-normal text-[#69758a]">
+                {roleLabel(user.role)}
+              </span>
+            </span>
+            <ChevronDown className="hidden size-4 text-[#7b869b] sm:block" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-64 rounded-md bg-white text-[#0d1b3d]">
+          <DropdownMenuLabel className="px-2 py-2">
+            <div className="flex items-center gap-3">
+              <Avatar user={user} className="size-10" />
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-[#0d1b3d]">{user.name}</p>
+                <p className="truncate text-xs font-normal text-[#69758a]">{user.email}</p>
+              </div>
+            </div>
+          </DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem className="gap-2 px-2 py-2" onSelect={openProfileDialog}>
+            <ImageIcon className="size-4" />
+            프로필 사진 변경
+          </DropdownMenuItem>
+          <DropdownMenuItem className="gap-2 px-2 py-2" onSelect={openProfileDialog}>
+            <UserCircle className="size-4" />
+            내 정보 수정
+          </DropdownMenuItem>
+          <DropdownMenuItem className="gap-2 px-2 py-2" disabled>
+            <ShieldCheck className="size-4" />
+            {roleLabel(user.role)}
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <form action={logoutAction}>
+            <DropdownMenuItem className="gap-2 px-2 py-2 text-red-600" asChild>
+              <button type="submit" className="w-full">
+                <LogOut className="size-4" />
+                로그아웃
+              </button>
+            </DropdownMenuItem>
+          </form>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <DialogContent className="sm:max-w-md">
+        <form onSubmit={saveProfile} className="space-y-4">
+          <DialogHeader>
+            <DialogTitle>내 프로필</DialogTitle>
+            <DialogDescription>
+              우측 상단 계정 메뉴에 표시될 기본 정보를 변경합니다.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex items-center gap-3 rounded-lg border border-[#dbe4ef] bg-[#f8fbff] p-3">
+            <Avatar
+              user={{
+                ...user,
+                name: form.name || user.name,
+                profileImageUrl: form.profileImageUrl || null,
+              }}
+              className="size-14"
+            />
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold text-[#0d1b3d]">
+                {form.name || user.name}
+              </p>
+              <p className="truncate text-xs text-[#69758a]">{form.email || user.email}</p>
+            </div>
+          </div>
+          <div className="grid gap-3">
+            <div className="grid gap-1.5">
+              <Label htmlFor="profile-name">이름</Label>
+              <Input
+                id="profile-name"
+                value={form.name}
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, name: event.target.value }))
+                }
+                required
+              />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="profile-email">이메일</Label>
+              <Input
+                id="profile-email"
+                type="email"
+                value={form.email}
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, email: event.target.value }))
+                }
+                required
+              />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="profile-image-url">프로필 사진 URL</Label>
+              <Input
+                id="profile-image-url"
+                type="url"
+                value={form.profileImageUrl}
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, profileImageUrl: event.target.value }))
+                }
+                placeholder="https://example.com/profile.jpg"
+              />
+            </div>
+            {error ? <p className="text-sm text-destructive">{error}</p> : null}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setIsProfileOpen(false)}>
+              취소
+            </Button>
+            <Button type="submit" disabled={isPending}>
+              {isPending ? "저장 중" : "저장"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function Avatar({ user, className }: { user: Pick<AppUserRow, "name" | "profileImageUrl">; className?: string }) {
+  if (user.profileImageUrl) {
+    return (
+      <span
+        className={cn("block shrink-0 rounded-full bg-cover bg-center ring-1 ring-[#d5e0ee]", className)}
+        style={{ backgroundImage: `url("${user.profileImageUrl}")` }}
+        aria-label={`${user.name} 프로필 사진`}
+      />
+    );
+  }
+
+  return (
+    <span
+      className={cn(
+        "grid shrink-0 place-items-center rounded-full bg-[#e9f0ff] text-sm font-semibold text-[#1f6fff] ring-1 ring-[#d5e0ee]",
+        className,
+      )}
+      aria-label={`${user.name} 프로필 기본 이미지`}
+    >
+      {user.name.slice(0, 1)}
+    </span>
+  );
+}
+
+function HeaderIcon({
+  label,
+  badge,
+  children,
+}: {
+  label: string;
+  badge?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      className="relative text-[#0d1b3d] hover:bg-[#eef4fb]"
+      aria-label={label}
+    >
+      {children}
+      {badge ? (
+        <span className="absolute right-0 top-1 grid min-w-4 place-items-center rounded-full bg-[#1f6fff] px-1 text-[10px] font-semibold leading-4 text-white">
+          {badge}
+        </span>
+      ) : null}
+    </Button>
+  );
+}
+
+function Sidebar({
+  collapsed,
+  pathname,
+  user,
+  mobile = false,
+}: {
+  collapsed: boolean;
+  pathname: string;
+  user: AppUserRow;
+  mobile?: boolean;
+}) {
+  const brandLink = (
+    <Link
+      href="/dashboard"
+      title={collapsed ? "대시보드" : undefined}
+      aria-label="대시보드로 이동"
+      className={cn(
+        "flex h-16 items-center gap-3 transition-colors hover:bg-[#f1f5fa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2f70dc]/40",
+        collapsed ? "justify-center px-3" : "px-5",
+      )}
+    >
+      <div className="grid size-9 shrink-0 place-items-center overflow-hidden rounded-md bg-white shadow-md shadow-blue-950/20">
+        <Image src="/logo.jpg" alt="거산시스템 로고" width={36} height={36} priority />
+      </div>
+      {!collapsed ? (
+        <div className="min-w-0">
+          <p className="truncate text-lg font-bold tracking-wide">GUSAN</p>
+          <p className="truncate text-[11px] font-medium text-[#718096]">ERP</p>
+        </div>
+      ) : null}
+    </Link>
+  );
+
+  return (
+    <div className="flex h-full flex-col">
+      {mobile ? <SheetClose asChild>{brandLink}</SheetClose> : brandLink}
+      <nav className={cn("flex-1 space-y-1 overflow-y-auto pb-4", collapsed ? "px-3" : "px-4")}>
+        {navItems
+          .filter((item) => !item.adminOnly || user.role === "admin")
+          .map((item) => {
+            const Icon = item.icon;
+            const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+            const link = (
+              <Link
+                key={`${item.label}-${item.href}`}
+                href={item.href}
+                title={collapsed ? item.label : undefined}
+                className={cn(
+                  "flex h-11 items-center rounded-md text-sm font-medium transition-colors",
+                  collapsed ? "justify-center px-0" : "gap-3 px-4",
+                  active
+                    ? "bg-[#eaf1fd] text-[#2f70dc]"
+                    : "text-[#5b6575] hover:bg-[#f1f5fa] hover:text-[#0d1b3d]",
+                )}
+              >
+                <Icon className="size-4 shrink-0" />
+                {!collapsed ? <span className="min-w-0 flex-1 truncate">{item.label}</span> : null}
+              </Link>
+            );
+
+            return mobile ? (
+              <SheetClose key={`${item.label}-${item.href}`} asChild>
+                {link}
+              </SheetClose>
+            ) : (
+              link
+            );
+          })}
+      </nav>
+      <div className={cn("border-t border-[#e6ecf3] p-4", collapsed ? "px-3" : undefined)}>
+        <form action={logoutAction} className="mb-2">
+          <Button
+            variant="ghost"
+            size={collapsed ? "icon" : "sm"}
+            type="submit"
+            className={cn(
+              "text-[#5b6575] hover:bg-[#f1f5fa] hover:text-[#0d1b3d]",
+              collapsed ? "w-full" : "w-full justify-start",
+            )}
+            title={collapsed ? "로그아웃" : undefined}
+          >
+            <LogOut className="size-4" />
+            {!collapsed ? "로그아웃" : null}
+          </Button>
+        </form>
+        {mobile ? (
+          <SheetClose asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full justify-start text-[#5b6575] hover:bg-[#f1f5fa] hover:text-[#0d1b3d]"
+            >
+              <ChevronLeft className="size-4" />
+              메뉴 닫기
+            </Button>
+          </SheetClose>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function roleLabel(role: AppUserRow["role"]) {
+  return {
+    admin: "관리자",
+    employee: "사원",
+  }[role];
+}
