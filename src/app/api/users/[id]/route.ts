@@ -14,7 +14,7 @@ import {
   noticeComments,
   notices,
 } from "@/db/schema";
-import { canManageUsers, getCurrentAppUser, serializeUser } from "@/lib/auth";
+import { canManageUsers, getCurrentAppUser, hashPassword, serializeUser } from "@/lib/auth";
 import { normalizeProfileImageUrl } from "@/lib/profile-image";
 
 const userUpdateSchema = z
@@ -24,6 +24,7 @@ const userUpdateSchema = z
     email: z.email("올바른 이메일을 입력해 주세요.").trim().toLowerCase().optional(),
     name: z.string().trim().min(1, "이름을 입력해 주세요.").optional(),
     profileImageUrl: z.string().trim().max(2048, "이미지 URL이 너무 깁니다.").optional(),
+    password: z.string().min(8, "새 비밀번호는 8자 이상이어야 합니다.").optional(),
     role: z.enum(["admin", "employee"]).optional(),
     status: z.enum(["active", "invited", "disabled"]).optional(),
   })
@@ -41,18 +42,28 @@ export async function PATCH(
 
     const { id } = await context.params;
     const body = userUpdateSchema.parse(await request.json());
-    const { employeeCode: rawEmployeeCode, ...userBody } = body;
+    const { employeeCode: rawEmployeeCode, password, ...userBody } = body;
     const patch = {
       ...userBody,
       ...(Object.hasOwn(userBody, "profileImageUrl")
         ? { profileImageUrl: normalizeProfileImageUrl(userBody.profileImageUrl) }
         : {}),
+      ...(password ? { passwordHash: hashPassword(password) } : {}),
     };
     const hasEmployeeCodePatch = Object.hasOwn(body, "employeeCode");
     const employeeCode = hasEmployeeCodePatch ? normalizeEmployeeCode(rawEmployeeCode) : undefined;
 
     if (!hasDatabaseUrl()) {
-      return NextResponse.json({ user: { id, ...patch, ...(hasEmployeeCodePatch ? { employeeCode } : {}) } });
+      const publicPatch = {
+        ...userBody,
+        ...(Object.hasOwn(userBody, "profileImageUrl")
+          ? { profileImageUrl: normalizeProfileImageUrl(userBody.profileImageUrl) }
+          : {}),
+      };
+
+      return NextResponse.json({
+        user: { id, ...publicPatch, ...(hasEmployeeCodePatch ? { employeeCode } : {}) },
+      });
     }
 
     const db = getDb();

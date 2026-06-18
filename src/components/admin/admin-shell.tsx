@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FormEvent, useEffect, useState, useSyncExternalStore, useTransition } from "react";
+import { FormEvent, useEffect, useMemo, useState, useSyncExternalStore, useTransition } from "react";
 import {
   Bell,
   BookOpenText,
@@ -20,6 +20,7 @@ import {
   Home,
   ImageIcon,
   Inbox,
+  KeyRound,
   LogOut,
   Menu,
   MonitorSmartphone,
@@ -53,6 +54,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Sheet, SheetClose, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
+import { getProfileImageDisplayUrl } from "@/lib/profile-image";
 import type { AppUserRow } from "@/lib/types";
 
 const mainNavItems = [
@@ -88,7 +90,14 @@ export function AdminShell({
 }) {
   const pathname = usePathname();
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const [displayUser, setDisplayUser] = useState(user);
+  const [localUser, setLocalUser] = useState<AppUserRow | null>(null);
+  const displayUser = useMemo(() => {
+    if (!localUser || localUser.id !== user.id) {
+      return user;
+    }
+
+    return Date.parse(localUser.updatedAt) >= Date.parse(user.updatedAt) ? localUser : user;
+  }, [localUser, user]);
   const sidebarWidth = isCollapsed ? "lg:pl-[84px]" : "lg:pl-[184px]";
   const currentTitle =
     navItems.find((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))?.label ??
@@ -146,7 +155,7 @@ export function AdminShell({
               <HeaderIcon label="도움말">
                 <CircleHelp className="size-5" />
               </HeaderIcon>
-              <AccountMenu user={displayUser} onUserChange={setDisplayUser} />
+              <AccountMenu user={displayUser} onUserChange={setLocalUser} />
             </div>
           </div>
         </header>
@@ -234,6 +243,8 @@ function AccountMenu({
     name: user.name,
     email: user.email,
     profileImageUrl: user.profileImageUrl ?? "",
+    currentPassword: "",
+    password: "",
   });
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -243,6 +254,8 @@ function AccountMenu({
       name: user.name,
       email: user.email,
       profileImageUrl: user.profileImageUrl ?? "",
+      currentPassword: "",
+      password: "",
     });
     setError(null);
     setIsProfileOpen(true);
@@ -256,7 +269,14 @@ function AccountMenu({
       const response = await fetch("/api/me", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          name: form.name,
+          email: form.email,
+          profileImageUrl: form.profileImageUrl,
+          ...(form.password.trim()
+            ? { currentPassword: form.currentPassword, password: form.password }
+            : {}),
+        }),
       });
       const data = await response.json();
 
@@ -266,6 +286,7 @@ function AccountMenu({
       }
 
       onUserChange(data.user);
+      setForm((current) => ({ ...current, currentPassword: "", password: "" }));
       setIsProfileOpen(false);
     });
   }
@@ -384,6 +405,37 @@ function AccountMenu({
                 placeholder="https://example.com/profile.jpg"
               />
             </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="profile-current-password">현재 비밀번호</Label>
+              <div className="relative">
+                <KeyRound className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-[#7c8aa0]" />
+                <Input
+                  id="profile-current-password"
+                  type="password"
+                  value={form.currentPassword}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, currentPassword: event.target.value }))
+                  }
+                  autoComplete="current-password"
+                  placeholder="비밀번호 변경 시 입력"
+                  className="pl-8"
+                />
+              </div>
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="profile-password">새 비밀번호</Label>
+              <Input
+                id="profile-password"
+                type="password"
+                value={form.password}
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, password: event.target.value }))
+                }
+                autoComplete="new-password"
+                minLength={8}
+                placeholder="변경할 때만 입력"
+              />
+            </div>
             {error ? <p className="text-sm text-destructive">{error}</p> : null}
           </div>
           <DialogFooter>
@@ -400,12 +452,20 @@ function AccountMenu({
   );
 }
 
-function Avatar({ user, className }: { user: Pick<AppUserRow, "name" | "profileImageUrl">; className?: string }) {
-  if (user.profileImageUrl) {
+function Avatar({
+  user,
+  className,
+}: {
+  user: Pick<AppUserRow, "name" | "profileImageUrl"> & { updatedAt?: string | null };
+  className?: string;
+}) {
+  const imageUrl = getProfileImageDisplayUrl(user.profileImageUrl, user.updatedAt);
+
+  if (imageUrl) {
     return (
       <span
         className={cn("block shrink-0 rounded-full bg-cover bg-center ring-1 ring-[#d5e0ee]", className)}
-        style={{ backgroundImage: `url("${user.profileImageUrl}")` }}
+        style={{ backgroundImage: `url("${imageUrl}")` }}
         aria-label={`${user.name} 프로필 사진`}
       />
     );

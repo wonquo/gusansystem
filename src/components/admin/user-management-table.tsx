@@ -9,7 +9,7 @@ import {
   type ColDef,
   type ICellRendererParams,
 } from "ag-grid-community";
-import { Loader2, Plus, RefreshCw, Search, Trash2 } from "lucide-react";
+import { KeyRound, Loader2, Plus, RefreshCw, Search, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,6 +30,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
+import { getProfileImageDisplayUrl } from "@/lib/profile-image";
 import type { AppUserRow } from "@/lib/types";
 
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -54,6 +56,7 @@ type EditUserForm = {
   email: string;
   name: string;
   profileImageUrl: string;
+  password: string;
   role: UserRole;
   status: UserStatus;
 };
@@ -165,6 +168,20 @@ export function UserManagementTable({
         valueGetter: (params) => (params.node?.rowIndex ?? 0) + 1,
       },
       {
+        colId: "profileImage",
+        headerName: "사진",
+        width: 72,
+        minWidth: 72,
+        maxWidth: 72,
+        sortable: false,
+        filter: false,
+        resizable: false,
+        suppressMovable: true,
+        cellClass: "erp-grid-cell flex items-center justify-center",
+        cellRenderer: (params: ICellRendererParams<AppUserRow>) =>
+          params.data ? <UserAvatar user={params.data} /> : null,
+      },
+      {
         field: "employeeCode",
         headerName: "사원코드",
         width: 120,
@@ -252,6 +269,7 @@ export function UserManagementTable({
       email: user.email,
       name: user.name,
       profileImageUrl: user.profileImageUrl ?? "",
+      password: "",
       role: user.role,
       status: user.status,
     });
@@ -301,6 +319,7 @@ export function UserManagementTable({
         email: editForm.email,
         name: editForm.name,
         profileImageUrl: editForm.profileImageUrl,
+        ...(editForm.password.trim() ? { password: editForm.password } : {}),
         role: editForm.role,
         status: editForm.status,
       }),
@@ -598,17 +617,51 @@ function UserForm<TForm extends CreateUserForm | EditUserForm>({
             />
           </FormField>
         ) : (
-          <FormField label="프로필 사진 URL" htmlFor="edit-profile-image-url">
-            <Input
-              id="edit-profile-image-url"
-              type="url"
-              value={(form as EditUserForm).profileImageUrl}
-              onChange={(event) =>
-                onChange((current) => ({ ...current, profileImageUrl: event.target.value }))
-              }
-              placeholder="https://example.com/profile.jpg"
-            />
-          </FormField>
+          <div className="grid gap-3">
+            <div className="flex items-center gap-3 rounded-lg border border-[#dbe4ef] bg-[#f8fbff] p-3">
+              <UserAvatar
+                user={{
+                  ...(form as EditUserForm),
+                  profileImageUrl: (form as EditUserForm).profileImageUrl || null,
+                }}
+                className="size-14 text-base"
+              />
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-[#0d1b3d]">
+                  {form.name || "사용자"}
+                </p>
+                <p className="truncate text-xs text-[#69758a]">{form.email || "이메일 없음"}</p>
+              </div>
+            </div>
+            <FormField label="프로필 사진 URL" htmlFor="edit-profile-image-url">
+              <Input
+                id="edit-profile-image-url"
+                type="url"
+                value={(form as EditUserForm).profileImageUrl}
+                onChange={(event) =>
+                  onChange((current) => ({ ...current, profileImageUrl: event.target.value }))
+                }
+                placeholder="https://example.com/profile.jpg"
+              />
+            </FormField>
+            <FormField label="새 비밀번호" htmlFor="edit-password">
+              <div className="relative">
+                <KeyRound className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-[#7c8aa0]" />
+                <Input
+                  id="edit-password"
+                  type="password"
+                  value={(form as EditUserForm).password}
+                  onChange={(event) =>
+                    onChange((current) => ({ ...current, password: event.target.value }))
+                  }
+                  autoComplete="new-password"
+                  minLength={8}
+                  placeholder="변경할 때만 입력"
+                  className="pl-8"
+                />
+              </div>
+            </FormField>
+          </div>
         )}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <FormField label="역할">
@@ -658,6 +711,38 @@ function UserForm<TForm extends CreateUserForm | EditUserForm>({
         </Button>
       </DialogFooter>
     </form>
+  );
+}
+
+function UserAvatar({
+  user,
+  className,
+}: {
+  user: Pick<AppUserRow, "name" | "profileImageUrl"> & { updatedAt?: string | null };
+  className?: string;
+}) {
+  const imageUrl = getProfileImageDisplayUrl(user.profileImageUrl, user.updatedAt);
+
+  if (imageUrl) {
+    return (
+      <span
+        className={cn("block size-8 shrink-0 rounded-full bg-cover bg-center ring-1 ring-[#d5e0ee]", className)}
+        style={{ backgroundImage: `url("${imageUrl}")` }}
+        aria-label={`${user.name} 프로필 사진`}
+      />
+    );
+  }
+
+  return (
+    <span
+      className={cn(
+        "grid size-8 shrink-0 place-items-center rounded-full bg-[#e9f0ff] text-xs font-semibold text-[#1f6fff] ring-1 ring-[#d5e0ee]",
+        className,
+      )}
+      aria-label={`${user.name} 프로필 기본 이미지`}
+    >
+      {user.name.slice(0, 1)}
+    </span>
   );
 }
 

@@ -166,7 +166,7 @@ export function hashPassword(password: string) {
   return `${salt}:${hash}`;
 }
 
-function verifyPassword(password: string, passwordHash: string) {
+export function verifyPassword(password: string, passwordHash: string) {
   const [salt, storedHash] = passwordHash.split(":");
   if (!salt || !storedHash) {
     return false;

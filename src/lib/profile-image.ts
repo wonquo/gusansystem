@@ -16,3 +16,21 @@ export function normalizeProfileImageUrl(value: string | undefined) {
 
   return url.toString();
 }
+
+export function getProfileImageDisplayUrl(value: string | null | undefined, version?: string | null) {
+  if (!value) {
+    return null;
+  }
+
+  if (!version) {
+    return value;
+  }
+
+  try {
+    const url = new URL(value);
+    url.searchParams.set("v", String(new Date(version).getTime() || version));
+    return url.toString();
+  } catch {
+    return value;
+  }
+}

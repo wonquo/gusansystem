@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { getDb, hasDatabaseUrl } from "@/db";
 import { appUsers } from "@/db/schema";
-import { getCurrentAppUser, serializeUser } from "@/lib/auth";
+import { getCurrentAppUser, hashPassword, serializeUser, verifyPassword } from "@/lib/auth";
 import { normalizeProfileImageUrl } from "@/lib/profile-image";
 
 const profileUpdateSchema = z
@@ -11,8 +11,19 @@ const profileUpdateSchema = z
     name: z.string().trim().min(1, "이름을 입력해 주세요.").optional(),
     email: z.email("올바른 이메일을 입력해 주세요.").trim().toLowerCase().optional(),
     profileImageUrl: z.string().trim().max(2048, "이미지 URL이 너무 깁니다.").optional(),
+    currentPassword: z.string().optional(),
+    password: z.string().min(8, "새 비밀번호는 8자 이상이어야 합니다.").optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((value, context) => {
+    if (value.password && !value.currentPassword) {
+      context.addIssue({
+        code: "custom",
+        path: ["currentPassword"],
+        message: "현재 비밀번호를 입력해 주세요.",
+      });
+    }
+  });
 
 export async function PATCH(request: Request) {
   try {
@@ -22,21 +33,43 @@ export async function PATCH(request: Request) {
     }
 
     const body = profileUpdateSchema.parse(await request.json());
+    const { currentPassword, password, ...profileBody } = body;
     const patch = {
-      ...body,
-      ...(Object.hasOwn(body, "profileImageUrl")
-        ? { profileImageUrl: normalizeProfileImageUrl(body.profileImageUrl) }
+      ...profileBody,
+      ...(Object.hasOwn(profileBody, "profileImageUrl")
+        ? { profileImageUrl: normalizeProfileImageUrl(profileBody.profileImageUrl) }
         : {}),
+      ...(password ? { passwordHash: hashPassword(password) } : {}),
     };
 
     if (!hasDatabaseUrl()) {
+      const publicPatch = {
+        ...profileBody,
+        ...(Object.hasOwn(profileBody, "profileImageUrl")
+          ? { profileImageUrl: normalizeProfileImageUrl(profileBody.profileImageUrl) }
+          : {}),
+      };
+
       return NextResponse.json({
         user: {
           ...currentUser,
-          ...patch,
+          ...publicPatch,
           updatedAt: new Date().toISOString(),
         },
       });
+    }
+
+    if (password) {
+      const persistedUser = await getDb().query.appUsers.findFirst({
+        where: eq(appUsers.id, currentUser.id),
+      });
+
+      if (!persistedUser || !verifyPassword(currentPassword ?? "", persistedUser.passwordHash)) {
+        return NextResponse.json(
+          { error: "현재 비밀번호가 올바르지 않습니다." },
+          { status: 400 },
+        );
+      }
     }
 
     const [updated] = await getDb()

@@ -1,7 +1,7 @@
 "use client";
 
 import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { AgGridReact } from "ag-grid-react";
+import { AgGridReact, type CustomCellEditorProps } from "ag-grid-react";
 import {
   AllCommunityModule,
   ModuleRegistry,
@@ -187,18 +187,28 @@ export function WorkDiaryGrid({
       {
         colId: "rowNumber",
         headerName: "No",
-        width: 78,
-        minWidth: 78,
-        maxWidth: 92,
+        width: 56,
+        minWidth: 56,
+        maxWidth: 64,
         pinned: "left",
         sortable: false,
         filter: false,
         editable: false,
         valueGetter: (params) => (params.node?.rowIndex ?? 0) + 1,
         cellClass: "erp-grid-cell erp-grid-cell-row-number",
-        cellRenderer: (params: ICellRendererParams<WorkDiaryGridRow>) => (
-          <RowNumberWithState value={params.value} row={params.data} />
-        ),
+      },
+      {
+        colId: "rowState",
+        headerName: "상태",
+        width: 72,
+        minWidth: 66,
+        maxWidth: 82,
+        pinned: "left",
+        sortable: false,
+        filter: false,
+        editable: false,
+        cellClass: "erp-grid-cell work-diary-state-cell",
+        cellRenderer: (params: ICellRendererParams<WorkDiaryGridRow>) => <RowStateBadge row={params.data} />,
       },
       {
         field: "workDate",
@@ -242,6 +252,9 @@ export function WorkDiaryGrid({
         minWidth: 260,
         editable: (params) => !params.data?.isDeleted,
         cellClass: "erp-grid-cell work-diary-text-cell",
+        cellEditor: MultilineTextCellEditor,
+        cellEditorPopup: true,
+        cellEditorPopupPosition: "under",
         wrapText: true,
         autoHeight: true,
       },
@@ -252,6 +265,9 @@ export function WorkDiaryGrid({
         minWidth: 240,
         editable: (params) => !params.data?.isDeleted,
         cellClass: "erp-grid-cell work-diary-text-cell",
+        cellEditor: MultilineTextCellEditor,
+        cellEditorPopup: true,
+        cellEditorPopupPosition: "under",
         wrapText: true,
         autoHeight: true,
       },
@@ -277,6 +293,9 @@ export function WorkDiaryGrid({
         minWidth: 180,
         editable: (params) => !params.data?.isDeleted,
         cellClass: "erp-grid-cell work-diary-text-cell",
+        cellEditor: MultilineTextCellEditor,
+        cellEditorPopup: true,
+        cellEditorPopupPosition: "under",
         wrapText: true,
         autoHeight: true,
       },
@@ -1235,15 +1254,9 @@ function WorkTypeDialog({
   );
 }
 
-function RowNumberWithState({ value, row }: { value: unknown; row?: WorkDiaryGridRow }) {
+function RowStateBadge({ row }: { row?: WorkDiaryGridRow }) {
   const label = getRowStateLabel(row);
-
-  return (
-    <span className="work-diary-row-number-state">
-      <span>{String(value ?? "")}</span>
-      {label ? <span className={`work-diary-state-chip ${label.className}`}>{label.text}</span> : null}
-    </span>
-  );
+  return label ? <span className={`work-diary-state-chip ${label.className}`}>{label.text}</span> : null;
 }
 
 function WorkTypeBadge({ label, color }: { label: string; color: string }) {
@@ -1284,6 +1297,51 @@ function ColorSelect({
         ))}
       </SelectContent>
     </Select>
+  );
+}
+
+function MultilineTextCellEditor({
+  value,
+  onValueChange,
+  stopEditing,
+}: CustomCellEditorProps<WorkDiaryGridRow, string | null>) {
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const [textValue, setTextValue] = useState(String(value ?? ""));
+
+  useEffect(() => {
+    window.requestAnimationFrame(() => {
+      const textarea = textareaRef.current;
+      if (!textarea) return;
+
+      textarea.focus();
+      textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+    });
+  }, []);
+
+  return (
+    <textarea
+      ref={textareaRef}
+      className="work-diary-multiline-editor"
+      value={textValue}
+      onChange={(event) => {
+        setTextValue(event.target.value);
+        onValueChange(event.target.value);
+      }}
+      onKeyDown={(event) => {
+        if (event.key !== "Enter") {
+          return;
+        }
+
+        event.stopPropagation();
+
+        if (event.shiftKey || event.altKey) {
+          return;
+        }
+
+        event.preventDefault();
+        stopEditing();
+      }}
+    />
   );
 }
 
