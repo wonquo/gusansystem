@@ -13,11 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "GUSAN ERP",
-  description: "거산시스템 ERP",
-  icons: {
-    icon: "/logo.png",
-  },
+  title: "GUESAN ERP",
+  description: "GUESAN ERP",
 };
 
 export default function RootLayout({

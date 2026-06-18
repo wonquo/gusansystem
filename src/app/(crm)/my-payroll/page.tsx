@@ -1,9 +1,11 @@
+import { redirect } from "next/navigation";
 import { ErpGrid } from "@/components/erp/erp-grid";
-import { requireAppUser } from "@/lib/auth";
+import { canAccessMenu, requireAppUser } from "@/lib/auth";
 import { listPayrollSlips } from "@/lib/erp/data";
 
 export default async function MyPayrollPage() {
   const user = await requireAppUser();
+  if (!(await canAccessMenu(user.role, "my-payroll", "view"))) redirect("/dashboard");
   const rows = await listPayrollSlips({ currentUserId: user.id, role: user.role, scope: "mine" });
   return (
     <ErpGrid

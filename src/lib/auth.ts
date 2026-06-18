@@ -4,13 +4,22 @@ import { createHmac, randomBytes, scryptSync, timingSafeEqual } from "node:crypt
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
-import { eq } from "drizzle-orm";
+import { eq, or } from "drizzle-orm";
 import { appUsers, employees, type AppUserRole } from "@/db/schema";
 import { getDb, hasDatabaseUrl } from "@/db";
 import type { AppUserRow } from "./types";
 
-const SESSION_COOKIE = "gusan_erp_session";
+const SESSION_COOKIE = "guesan_erp_session";
 const SESSION_TTL_MS = 1000 * 60 * 60 * 12;
+const EMPLOYEE_MENU_PERMISSIONS: Record<
+  string,
+  readonly ("view" | "create" | "update" | "delete" | "upload")[]
+> = {
+  dashboard: ["view"],
+  board: ["view", "create"],
+  calendar: ["view", "create"],
+  "work-diaries": ["view", "create", "update", "delete"],
+};
 
 export function canManageUsers(role: AppUserRole) {
   return role === "admin";
@@ -47,16 +56,8 @@ export async function canAccessMenu(
     return true;
   }
 
-  if (menuKey === "board" && (action === "view" || action === "create")) {
-    return true;
-  }
-
-  if (menuKey === "calendar" && (action === "view" || action === "create")) {
-    return true;
-  }
-
-  if (role === "employee" && menuKey === "my-payroll" && action === "view") {
-    return true;
+  if (role === "employee") {
+    return EMPLOYEE_MENU_PERMISSIONS[menuKey]?.includes(action) ?? false;
   }
 
   if (!hasDatabaseUrl()) {
@@ -193,7 +194,7 @@ async function ensureBootstrapAdmin() {
 
   const db = getDb();
   const existing = await db.query.appUsers.findFirst({
-    where: eq(appUsers.loginId, loginId),
+    where: or(eq(appUsers.loginId, loginId), eq(appUsers.email, email)),
   });
 
   if (existing) {

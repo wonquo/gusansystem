@@ -5,7 +5,7 @@ import { listTaxInvoices } from "@/lib/erp/data";
 
 export default async function TaxInvoicesPage() {
   const user = await requireAppUser();
-  if (!(await canAccessMenu(user.role, "tax-invoices", "view"))) redirect("/my-payroll");
+  if (!(await canAccessMenu(user.role, "tax-invoices", "view"))) redirect("/dashboard");
   const rows = await listTaxInvoices();
   return (
     <ErpGrid

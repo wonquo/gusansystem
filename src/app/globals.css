@@ -217,9 +217,72 @@
   text-align: center;
 }
 
+.erp-grid .work-diary-row-number-state {
+  align-items: center;
+  display: inline-flex;
+  gap: 4px;
+  justify-content: center;
+  width: 100%;
+}
+
+.erp-grid .work-diary-state-chip {
+  border-radius: 4px;
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 2px 4px;
+}
+
+.erp-grid .work-diary-state-chip.is-new {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.erp-grid .work-diary-state-chip.is-modified {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.erp-grid .work-diary-state-chip.is-delete {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
 .erp-grid .erp-grid-cell-date {
   font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   color: #334155;
+}
+
+.erp-grid .work-diary-date-red {
+  color: #dc2626;
+  font-weight: 700;
+}
+
+.erp-grid .work-diary-date-blue {
+  color: #2563eb;
+  font-weight: 700;
+}
+
+.erp-grid .work-diary-type-cell {
+  align-items: center;
+}
+
+.erp-grid .work-diary-type-badge,
+.work-diary-type-badge {
+  align-items: center;
+  background: var(--work-type-bg);
+  border: 1px solid var(--work-type-border);
+  border-radius: 4px;
+  color: var(--work-type-color);
+  display: inline-flex;
+  font-size: 11px;
+  font-weight: 700;
+  justify-content: center;
+  line-height: 1;
+  min-width: 44px;
+  padding: 4px 7px;
+  white-space: nowrap;
 }
 
 .erp-grid .ag-row-pinned {
@@ -230,6 +293,58 @@
 
 .erp-grid .ag-row-pinned .ag-cell {
   color: #0d1b3d;
+}
+
+.erp-grid .work-diary-row-new {
+  background: #f3fbf6;
+}
+
+.erp-grid .work-diary-row-today {
+  background: #eef6ff;
+}
+
+.erp-grid .work-diary-row-today .ag-cell:first-child {
+  box-shadow: inset 3px 0 0 #2f70dc;
+}
+
+.erp-grid .work-diary-row-editing {
+  background: #f8fbff;
+}
+
+.erp-grid .work-diary-row-editing .ag-cell {
+  border-bottom-color: #9fc0f2;
+  border-top-color: #9fc0f2;
+}
+
+.erp-grid .ag-cell-focus,
+.erp-grid .ag-cell-inline-editing {
+  border-color: #2f70dc !important;
+  box-shadow: inset 0 0 0 1px #2f70dc;
+}
+
+.erp-grid .ag-cell-inline-editing {
+  background: #ffffff;
+}
+
+.erp-grid .work-diary-row-modified {
+  background: #fff8eb;
+}
+
+.erp-grid .work-diary-row-deleted {
+  background: #fff1f2;
+}
+
+.erp-grid .work-diary-row-deleted .ag-cell {
+  color: #9f1239;
+  text-decoration: line-through;
+}
+
+.erp-grid .work-diary-text-cell {
+  align-items: flex-start;
+  min-height: 36px;
+  padding-bottom: 7px;
+  padding-top: 7px;
+  white-space: pre-wrap;
 }
 
 .erp-grid-empty {

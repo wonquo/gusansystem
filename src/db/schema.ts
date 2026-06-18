@@ -466,6 +466,71 @@ export const calendarEvents = pgTable(
   ],
 );
 
+export const workDiaryDestinations = pgTable(
+  "work_diary_destinations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    code: text("code").notNull(),
+    label: text("label").notNull(),
+    sortOrder: integer("sort_order").notNull().default(0),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("work_diary_destinations_code_idx").on(table.code),
+    index("work_diary_destinations_active_sort_idx").on(table.isActive, table.sortOrder),
+  ],
+);
+
+export const workDiaryTypes = pgTable(
+  "work_diary_types",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    code: text("code").notNull(),
+    label: text("label").notNull(),
+    color: text("color").notNull().default("#475569"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("work_diary_types_code_idx").on(table.code),
+    index("work_diary_types_active_sort_idx").on(table.isActive, table.sortOrder),
+  ],
+);
+
+export const workDiaryEntries = pgTable(
+  "work_diary_entries",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => appUsers.id, { onDelete: "cascade" }),
+    workDate: date("work_date").notNull(),
+    workType: text("work_type").notNull().default("업무"),
+    workTypeId: uuid("work_type_id").references(() => workDiaryTypes.id, {
+      onDelete: "set null",
+    }),
+    primaryWork: text("primary_work").notNull().default(""),
+    secondaryWork: text("secondary_work").notNull().default(""),
+    destinationId: uuid("destination_id").references(() => workDiaryDestinations.id, {
+      onDelete: "set null",
+    }),
+    memo: text("memo").notNull().default(""),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("work_diary_entries_user_date_idx").on(table.userId, table.workDate),
+    index("work_diary_entries_date_idx").on(table.workDate),
+    index("work_diary_entries_type_idx").on(table.workTypeId),
+    index("work_diary_entries_destination_idx").on(table.destinationId),
+  ],
+);
+
 export const noticeComments = pgTable(
   "notice_comments",
   {
@@ -550,6 +615,7 @@ export const appUsersRelations = relations(appUsers, ({ many }) => ({
   boardPosts: many(boardPosts),
   boardComments: many(boardComments),
   calendarEvents: many(calendarEvents),
+  workDiaryEntries: many(workDiaryEntries),
 }));
 
 export const employeesRelations = relations(employees, ({ one, many }) => ({
@@ -672,6 +738,29 @@ export const calendarEventsRelations = relations(calendarEvents, ({ one }) => ({
   author: one(appUsers, {
     fields: [calendarEvents.createdBy],
     references: [appUsers.id],
+  }),
+}));
+
+export const workDiaryDestinationsRelations = relations(workDiaryDestinations, ({ many }) => ({
+  entries: many(workDiaryEntries),
+}));
+
+export const workDiaryTypesRelations = relations(workDiaryTypes, ({ many }) => ({
+  entries: many(workDiaryEntries),
+}));
+
+export const workDiaryEntriesRelations = relations(workDiaryEntries, ({ one }) => ({
+  user: one(appUsers, {
+    fields: [workDiaryEntries.userId],
+    references: [appUsers.id],
+  }),
+  workTypeOption: one(workDiaryTypes, {
+    fields: [workDiaryEntries.workTypeId],
+    references: [workDiaryTypes.id],
+  }),
+  destination: one(workDiaryDestinations, {
+    fields: [workDiaryEntries.destinationId],
+    references: [workDiaryDestinations.id],
   }),
 }));
 

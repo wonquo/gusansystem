@@ -5,7 +5,7 @@ import { listProjects } from "@/lib/erp/data";
 
 export default async function ProjectsPage() {
   const user = await requireAppUser();
-  if (!(await canAccessMenu(user.role, "projects", "view"))) redirect("/my-payroll");
+  if (!(await canAccessMenu(user.role, "projects", "view"))) redirect("/dashboard");
   const canCreateProjects = await canAccessMenu(user.role, "projects", "create");
   const rows = await listProjects();
   return (

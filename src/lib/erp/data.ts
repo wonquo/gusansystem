@@ -801,10 +801,19 @@ export function buildDefaultPermissions() {
       id: `${role}:${menu.key}`,
       role,
       menuKey: menu.key,
-      canView: role === "admin" || menu.key === "my-payroll",
-      canCreate: role === "admin",
-      canUpdate: role === "admin",
-      canDelete: role === "admin",
+      canView:
+        role === "admin" ||
+        menu.key === "dashboard" ||
+        menu.key === "board" ||
+        menu.key === "calendar" ||
+        menu.key === "work-diaries",
+      canCreate:
+        role === "admin" ||
+        menu.key === "board" ||
+        menu.key === "calendar" ||
+        menu.key === "work-diaries",
+      canUpdate: role === "admin" || menu.key === "work-diaries",
+      canDelete: role === "admin" || menu.key === "work-diaries",
       canUpload: role === "admin",
       createdAt: null,
       updatedAt: null,

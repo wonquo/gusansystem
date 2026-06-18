@@ -5,7 +5,7 @@ import { listPayrollSlips } from "@/lib/erp/data";
 
 export default async function PayrollPage() {
   const user = await requireAppUser();
-  if (!(await canAccessMenu(user.role, "payroll", "view"))) redirect("/my-payroll");
+  if (!(await canAccessMenu(user.role, "payroll", "view"))) redirect("/dashboard");
   const [rows, canDeletePayroll] = await Promise.all([
     listPayrollSlips({ currentUserId: user.id, role: user.role, scope: "all" }),
     canAccessMenu(user.role, "payroll", "delete"),

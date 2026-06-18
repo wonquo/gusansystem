@@ -190,3 +190,48 @@ export type CalendarEventRow = {
   createdAt: string;
   updatedAt: string;
 };
+
+export type WorkDiaryDestinationRow = {
+  id: string;
+  code: string;
+  label: string;
+  sortOrder: number;
+  isActive: boolean;
+  usageCount: number;
+  createdAt: string | null;
+  updatedAt: string | null;
+};
+
+export type WorkDiaryTypeRow = {
+  id: string;
+  code: string;
+  label: string;
+  color: string;
+  sortOrder: number;
+  isActive: boolean;
+  usageCount: number;
+  createdAt: string | null;
+  updatedAt: string | null;
+};
+
+export type WorkDiaryRow = {
+  id: string;
+  userId: string;
+  userName: string;
+  workDate: string;
+  workType: string;
+  workTypeId: string | null;
+  workTypeCode: string | null;
+  workTypeLabel: string | null;
+  workTypeColor: string | null;
+  primaryWork: string;
+  secondaryWork: string;
+  destinationId: string | null;
+  destinationCode: string | null;
+  destinationLabel: string | null;
+  memo: string;
+  sortOrder: number;
+  isPlaceholder: boolean;
+  createdAt: string | null;
+  updatedAt: string | null;
+};

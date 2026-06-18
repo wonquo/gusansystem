@@ -5,7 +5,7 @@ import { listImportBatches } from "@/lib/erp/data";
 
 export default async function ImportsPage() {
   const user = await requireAppUser();
-  if (!(await canAccessMenu(user.role, "imports", "view"))) redirect("/my-payroll");
+  if (!(await canAccessMenu(user.role, "imports", "view"))) redirect("/dashboard");
   const rows = await listImportBatches();
   return (
     <ErpGrid

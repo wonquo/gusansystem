@@ -14,6 +14,7 @@ import {
   CircleHelp,
   ClipboardList,
   FileClock,
+  FileText,
   FileSpreadsheet,
   FolderKanban,
   Home,
@@ -53,19 +54,25 @@ import { Sheet, SheetClose, SheetContent, SheetTrigger } from "@/components/ui/s
 import { cn } from "@/lib/utils";
 import type { AppUserRow } from "@/lib/types";
 
-const navItems = [
+const mainNavItems = [
   { href: "/dashboard", label: "대시보드", icon: Home },
   { href: "/board", label: "게시판", icon: BookOpenText },
   { href: "/calendar", label: "캘린더", icon: CalendarDays },
-  { href: "/projects", label: "프로젝트 관리", icon: FolderKanban, adminOnly: true },
-  { href: "/tax-invoices", label: "전자세금계산서", icon: ReceiptText, adminOnly: true },
-  { href: "/bank", label: "법인통장", icon: WalletCards, adminOnly: true },
-  { href: "/payroll", label: "급여대장", icon: ClipboardList, adminOnly: true },
-  { href: "/my-payroll", label: "내 급여명세서", icon: FileSpreadsheet },
-  { href: "/imports", label: "업로드 이력", icon: FileClock, adminOnly: true },
-  { href: "/users", label: "사용자 목록", icon: UsersRound, adminOnly: true },
-  { href: "/permissions", label: "권한 관리", icon: Settings, adminOnly: true },
+  { href: "/work-diaries", label: "업무일지", icon: FileText },
 ];
+
+const adminNavItems = [
+  { href: "/projects", label: "프로젝트 관리", icon: FolderKanban },
+  { href: "/tax-invoices", label: "전자세금계산서", icon: ReceiptText },
+  { href: "/bank", label: "법인통장", icon: WalletCards },
+  { href: "/payroll", label: "급여대장", icon: ClipboardList },
+  { href: "/my-payroll", label: "내 급여명세서", icon: FileSpreadsheet },
+  { href: "/imports", label: "업로드 이력", icon: FileClock },
+  { href: "/users", label: "사용자 목록", icon: UsersRound },
+  { href: "/permissions", label: "권한 관리", icon: Settings },
+];
+
+const navItems = [...mainNavItems, ...adminNavItems];
 
 export function AdminShell({
   user,
@@ -80,7 +87,7 @@ export function AdminShell({
   const sidebarWidth = isCollapsed ? "lg:pl-[84px]" : "lg:pl-[184px]";
   const currentTitle =
     navItems.find((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))?.label ??
-    "GUSAN ERP";
+    "GUESAN ERP";
 
   return (
     <div className="min-h-screen bg-[#f7f9fc] text-[#0d1b3d]">
@@ -383,6 +390,10 @@ function Sidebar({
   user: AppUserRow;
   mobile?: boolean;
 }) {
+  const [adminOpen, setAdminOpen] = useState(true);
+  const adminActive = adminNavItems.some(
+    (item) => pathname === item.href || pathname.startsWith(`${item.href}/`),
+  );
   const brandLink = (
     <Link
       href="/dashboard"
@@ -394,52 +405,84 @@ function Sidebar({
       )}
     >
       <div className="grid size-9 shrink-0 place-items-center overflow-hidden rounded-md bg-white shadow-md shadow-blue-950/20">
-        <Image src="/logo.png" alt="거산시스템 로고" width={36} height={36} priority />
+        <Image src="/logo.png" alt="GUESAN 로고" width={36} height={36} priority />
       </div>
       {!collapsed ? (
         <div className="min-w-0">
-          <p className="truncate text-lg font-bold tracking-wide">GUSAN</p>
+          <p className="truncate text-lg font-bold tracking-wide">GUESAN</p>
           <p className="truncate text-[11px] font-medium text-[#718096]">ERP</p>
         </div>
       ) : null}
     </Link>
   );
+  const renderNavLink = (item: (typeof navItems)[number], nested = false) => {
+    const Icon = item.icon;
+    const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+    const link = (
+      <Link
+        key={`${item.label}-${item.href}`}
+        href={item.href}
+        title={collapsed ? item.label : undefined}
+        className={cn(
+          "flex items-center rounded-md text-sm font-medium transition-colors",
+          collapsed ? "h-10 justify-center px-0" : nested ? "h-10 gap-3 pl-8 pr-3" : "h-11 gap-3 px-4",
+          active
+            ? "bg-[#eaf1fd] text-[#2f70dc]"
+            : "text-[#5b6575] hover:bg-[#f1f5fa] hover:text-[#0d1b3d]",
+        )}
+      >
+        <Icon className="size-4 shrink-0" />
+        {!collapsed ? <span className="min-w-0 flex-1 truncate">{item.label}</span> : null}
+      </Link>
+    );
+
+    return mobile ? (
+      <SheetClose key={`${item.label}-${item.href}`} asChild>
+        {link}
+      </SheetClose>
+    ) : (
+      link
+    );
+  };
 
   return (
     <div className="flex h-full flex-col">
       {mobile ? <SheetClose asChild>{brandLink}</SheetClose> : brandLink}
       <nav className={cn("flex-1 space-y-1 overflow-y-auto pb-4", collapsed ? "px-3" : "px-4")}>
-        {navItems
-          .filter((item) => !item.adminOnly || user.role === "admin")
-          .map((item) => {
-            const Icon = item.icon;
-            const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
-            const link = (
-              <Link
-                key={`${item.label}-${item.href}`}
-                href={item.href}
-                title={collapsed ? item.label : undefined}
-                className={cn(
-                  "flex h-11 items-center rounded-md text-sm font-medium transition-colors",
-                  collapsed ? "justify-center px-0" : "gap-3 px-4",
-                  active
-                    ? "bg-[#eaf1fd] text-[#2f70dc]"
-                    : "text-[#5b6575] hover:bg-[#f1f5fa] hover:text-[#0d1b3d]",
-                )}
-              >
-                <Icon className="size-4 shrink-0" />
-                {!collapsed ? <span className="min-w-0 flex-1 truncate">{item.label}</span> : null}
-              </Link>
-            );
-
-            return mobile ? (
-              <SheetClose key={`${item.label}-${item.href}`} asChild>
-                {link}
-              </SheetClose>
-            ) : (
-              link
-            );
-          })}
+        {mainNavItems.map((item) => renderNavLink(item))}
+        {user.role === "admin" ? (
+          <div className="space-y-1 pt-2">
+            <button
+              type="button"
+              title={collapsed ? "관리자" : undefined}
+              aria-expanded={adminOpen}
+              onClick={() => setAdminOpen((current) => !current)}
+              className={cn(
+                "flex h-11 w-full items-center rounded-md text-sm font-medium transition-colors",
+                collapsed ? "justify-center px-0" : "gap-3 px-4",
+                adminActive
+                  ? "bg-[#eaf1fd] text-[#2f70dc]"
+                  : "text-[#5b6575] hover:bg-[#f1f5fa] hover:text-[#0d1b3d]",
+              )}
+            >
+              <ShieldCheck className="size-4 shrink-0" />
+              {!collapsed ? (
+                <>
+                  <span className="min-w-0 flex-1 truncate text-left">관리자</span>
+                  <ChevronDown
+                    className={cn(
+                      "size-4 shrink-0 transition-transform",
+                      adminOpen ? "rotate-180" : undefined,
+                    )}
+                  />
+                </>
+              ) : null}
+            </button>
+            {adminOpen ? (
+              <div className="space-y-1">{adminNavItems.map((item) => renderNavLink(item, true))}</div>
+            ) : null}
+          </div>
+        ) : null}
       </nav>
       <div className={cn("border-t border-[#e6ecf3] p-4", collapsed ? "px-3" : undefined)}>
         <form action={logoutAction} className="mb-2">

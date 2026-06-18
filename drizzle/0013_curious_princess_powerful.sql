@@ -1,0 +1,1 @@
+ALTER TABLE "work_diary_entries" ADD COLUMN "work_type" text DEFAULT '업무' NOT NULL;

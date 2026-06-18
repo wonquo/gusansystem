@@ -5,7 +5,7 @@ import { listBankTransactions } from "@/lib/erp/data";
 
 export default async function BankPage() {
   const user = await requireAppUser();
-  if (!(await canAccessMenu(user.role, "bank", "view"))) redirect("/my-payroll");
+  if (!(await canAccessMenu(user.role, "bank", "view"))) redirect("/dashboard");
   const rows = await listBankTransactions();
   return (
     <ErpGrid
