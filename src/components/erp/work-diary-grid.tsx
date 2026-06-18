@@ -509,85 +509,108 @@ export function WorkDiaryGrid({
   }
 
   return (
-    <div className="crm-erp-surface space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-[#d8e0ea] bg-white px-3 py-3 shadow-sm">
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <div className="flex items-center gap-2">
-            <CalendarDays className="size-4 text-[#2f70dc]" />
+    <div className="crm-erp-surface mx-auto flex h-[calc(100vh-5.5rem)] max-w-[1840px] flex-col gap-3 overflow-hidden">
+      <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+        <div>
+          <h1 className="text-base font-semibold tracking-tight text-[#0d1b3d]">업무일지</h1>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="outline" className="h-7 w-fit border-[#cfd9e7] bg-white px-2.5 text-xs">
+            {rows.length.toLocaleString()}건
+          </Badge>
+          {dirtyCount ? (
+            <Badge className="h-7 w-fit px-2.5 text-xs">{dirtyCount.toLocaleString()}건 변경</Badge>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="overflow-hidden rounded-lg border border-[#d8e0ea] bg-white shadow-[0_1px_4px_rgba(15,28,48,0.06)]">
+        <div className="grid gap-px bg-[#edf1f6] p-px lg:grid-cols-[88px_minmax(230px,280px)_72px_minmax(170px,220px)_auto]">
+          <div className="flex items-center bg-[#f2f5f9] px-3 py-2 text-[11px] font-semibold whitespace-nowrap text-[#69758a]">
+            기준월
+          </div>
+          <div className="flex items-center gap-2 bg-white px-2 py-1.5">
             <Button
               type="button"
               variant="outline"
               size="icon-sm"
               aria-label="전월"
               onClick={() => changeMonth(-1)}
+              disabled={isPending}
             >
               <ChevronLeft className="size-4" />
             </Button>
-            <Input
-              type="month"
-              value={month}
-              onChange={(event) => {
-                setMonth(event.target.value);
-                reloadRows(event.target.value, selectedUserId);
-              }}
-              className="h-8 w-[150px]"
-            />
+            <div className="relative min-w-0 flex-1">
+              <CalendarDays className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-[#7c8aa0]" />
+              <Input
+                type="month"
+                value={month}
+                onChange={(event) => {
+                  setMonth(event.target.value);
+                  reloadRows(event.target.value, selectedUserId);
+                }}
+                className="h-8 border-[#d8e0ea] bg-white pl-7 text-sm focus-visible:border-[#2f70dc] focus-visible:ring-[#2f70dc]/20"
+                disabled={isPending}
+              />
+            </div>
             <Button
               type="button"
               variant="outline"
               size="icon-sm"
               aria-label="다음월"
               onClick={() => changeMonth(1)}
+              disabled={isPending}
             >
               <ChevronRight className="size-4" />
             </Button>
           </div>
-          {isAdmin ? (
-            <Select
-              value={selectedUserId}
-              onValueChange={(value) => {
-                setSelectedUserId(value);
-                reloadRows(month, value);
-              }}
-            >
-              <SelectTrigger className="h-8 w-[180px]">
-                <SelectValue placeholder="사용자 선택" />
-              </SelectTrigger>
-              <SelectContent>
-                {users.map((user) => (
-                  <SelectItem key={user.id} value={user.id}>
-                    {user.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          ) : null}
-          <Badge variant="outline" className="h-7 rounded-md px-2">
-            {rows.length.toLocaleString()}행
-          </Badge>
-          {dirtyCount ? (
-            <Badge className="h-7 rounded-md px-2">{dirtyCount.toLocaleString()}건 변경</Badge>
-          ) : null}
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={addRow}>
-              <Plus className="size-4" />
+          <div className="flex items-center bg-[#f2f5f9] px-3 py-2 text-[11px] font-semibold whitespace-nowrap text-[#69758a]">
+            사용자
+          </div>
+          <div className="bg-white p-2">
+            {isAdmin ? (
+              <Select
+                value={selectedUserId}
+                onValueChange={(value) => {
+                  setSelectedUserId(value);
+                  reloadRows(month, value);
+                }}
+                disabled={isPending}
+              >
+                <SelectTrigger className="h-8 w-full border-[#d8e0ea] bg-white text-sm focus-visible:border-[#2f70dc] focus-visible:ring-[#2f70dc]/20">
+                  <SelectValue placeholder="사용자 선택" />
+                </SelectTrigger>
+                <SelectContent>
+                  {users.map((user) => (
+                    <SelectItem key={user.id} value={user.id}>
+                      {user.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <div className="flex h-8 items-center rounded-md border border-[#d8e0ea] bg-[#f8fafc] px-3 text-sm font-medium text-[#334155]">
+                {selectedUser.name}
+              </div>
+            )}
+          </div>
+          <div className="flex flex-col gap-2 bg-[#f8fafc] p-2 lg:min-w-[620px] lg:flex-row lg:items-center lg:justify-end">
+            <Button type="button" variant="outline" size="sm" onClick={addRow} disabled={isPending}>
+              <Plus className="size-3.5" />
               행 추가
             </Button>
-            <Button type="button" variant="outline" size="sm" onClick={deleteSelectedRow}>
-              <Trash2 className="size-4" />
+            <Button type="button" variant="outline" size="sm" onClick={deleteSelectedRow} disabled={isPending}>
+              <Trash2 className="size-3.5" />
               행 삭제
             </Button>
-          </div>
-          <div className="flex items-center gap-2 border-l border-[#d8e0ea] pl-2">
             <Button
               type="button"
               variant="outline"
               size="sm"
               onClick={() => setIsDestinationDialogOpen(true)}
+              disabled={isPending}
             >
-              <MapPin className="size-4" />
+              <MapPin className="size-3.5" />
               행선지 관리
             </Button>
             {isAdmin ? (
@@ -596,24 +619,18 @@ export function WorkDiaryGrid({
                 variant="outline"
                 size="sm"
                 onClick={() => setIsWorkTypeDialogOpen(true)}
+                disabled={isPending}
               >
-                <Tags className="size-4" />
+                <Tags className="size-3.5" />
                 업무구분 관리
               </Button>
             ) : null}
-          </div>
-          <div className="flex items-center gap-2 border-l border-[#d8e0ea] pl-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => reloadRows()}
-            >
-              <RefreshCw className="size-4" />
+            <Button type="button" variant="outline" size="sm" onClick={() => reloadRows()} disabled={isPending}>
+              <RefreshCw className="size-3.5" />
               새로고침
             </Button>
             <Button type="button" size="sm" disabled={isPending} onClick={saveRows}>
-              {isPending ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+              {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
               저장
             </Button>
           </div>
@@ -627,44 +644,62 @@ export function WorkDiaryGrid({
         </Alert>
       ) : null}
       {notice ? (
-        <div className="rounded-md border border-[#c9d8ee] bg-[#f5f8fd] px-3 py-2 text-xs text-[#29456f]">
-          {notice}
-        </div>
+        <Alert className="border-[#bfd2f5] bg-[#eef4ff] text-[#1f4f9f]">
+          <AlertTitle>처리 완료</AlertTitle>
+          <AlertDescription>{notice}</AlertDescription>
+        </Alert>
       ) : null}
 
-      <div className="ag-theme-quartz erp-grid h-[calc(100vh-15rem)] min-h-[520px] w-full overflow-hidden rounded-md border border-[#d8e0ea] bg-white">
-        <AgGridReact
-          rowData={rows}
-          columnDefs={columnDefs}
-          getRowId={(params: GetRowIdParams<WorkDiaryGridRow>) => params.data.clientId}
-          defaultColDef={{ resizable: true, sortable: true, filter: true, editable: true }}
-          singleClickEdit
-          rowSelection="single"
-          suppressDragLeaveHidesColumns
-          stopEditingWhenCellsLoseFocus
-          onGridReady={(event) => {
-            gridApiRef.current = event.api;
-            event.api.getDisplayedRowAtIndex(0)?.setSelected(true);
-          }}
-          onCellValueChanged={onCellValueChanged}
-          onCellEditingStarted={(event: CellEditingStartedEvent<WorkDiaryGridRow>) => {
-            setEditingClientId(event.data?.clientId ?? null);
-          }}
-          onCellEditingStopped={(event: CellEditingStoppedEvent<WorkDiaryGridRow>) => {
-            setEditingClientId((current) => (current === event.data?.clientId ? null : current));
-          }}
-          onSelectionChanged={onSelectionChanged}
-          getRowClass={(params: RowClassParams<WorkDiaryGridRow>) => {
-            const classes = [];
-            if (params.data?.workDate === todayText) classes.push("work-diary-row-today");
-            if (params.data?.clientId === editingClientId) classes.push("work-diary-row-editing");
-            if (params.data?.isDeleted) classes.push("work-diary-row-deleted");
-            else if (params.data?.rowState === "new") classes.push("work-diary-row-new");
-            else if (params.data?.rowState === "modified") classes.push("work-diary-row-modified");
-            return classes.length ? classes.join(" ") : undefined;
-          }}
-          overlayNoRowsTemplate='<span class="erp-grid-empty">표시할 업무일지가 없습니다</span>'
-        />
+      <div className="relative min-h-0 flex-1 overflow-hidden rounded-lg border border-[#d8e0ea] bg-white shadow-[0_10px_34px_rgba(15,28,48,0.06)]">
+        {isPending ? (
+          <div className="absolute inset-x-0 top-0 z-10 h-0.5 overflow-hidden bg-[#dbe7fb]">
+            <span className="block h-full w-1/3 animate-pulse bg-[#2f70dc]" />
+          </div>
+        ) : null}
+        <div className="ag-theme-quartz erp-grid h-full w-full">
+          <AgGridReact
+            rowData={rows}
+            columnDefs={columnDefs}
+            getRowId={(params: GetRowIdParams<WorkDiaryGridRow>) => params.data.clientId}
+            defaultColDef={{
+              minWidth: 110,
+              resizable: true,
+              sortable: true,
+              filter: true,
+              editable: true,
+              suppressHeaderMenuButton: true,
+              cellClass: "erp-grid-cell",
+            }}
+            singleClickEdit
+            rowSelection="single"
+            animateRows={false}
+            theme="legacy"
+            suppressDragLeaveHidesColumns
+            stopEditingWhenCellsLoseFocus
+            onGridReady={(event) => {
+              gridApiRef.current = event.api;
+              event.api.getDisplayedRowAtIndex(0)?.setSelected(true);
+            }}
+            onCellValueChanged={onCellValueChanged}
+            onCellEditingStarted={(event: CellEditingStartedEvent<WorkDiaryGridRow>) => {
+              setEditingClientId(event.data?.clientId ?? null);
+            }}
+            onCellEditingStopped={(event: CellEditingStoppedEvent<WorkDiaryGridRow>) => {
+              setEditingClientId((current) => (current === event.data?.clientId ? null : current));
+            }}
+            onSelectionChanged={onSelectionChanged}
+            getRowClass={(params: RowClassParams<WorkDiaryGridRow>) => {
+              const classes = [];
+              if (params.data?.workDate === todayText) classes.push("work-diary-row-today");
+              if (params.data?.clientId === editingClientId) classes.push("work-diary-row-editing");
+              if (params.data?.isDeleted) classes.push("work-diary-row-deleted");
+              else if (params.data?.rowState === "new") classes.push("work-diary-row-new");
+              else if (params.data?.rowState === "modified") classes.push("work-diary-row-modified");
+              return classes.length ? classes.join(" ") : undefined;
+            }}
+            overlayNoRowsTemplate='<span class="erp-grid-empty">표시할 업무일지가 없습니다</span>'
+          />
+        </div>
       </div>
 
       <DestinationDialog

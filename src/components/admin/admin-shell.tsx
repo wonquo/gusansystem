@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FormEvent, useState, useTransition } from "react";
+import { FormEvent, useEffect, useState, useSyncExternalStore, useTransition } from "react";
 import {
   Bell,
   BookOpenText,
@@ -22,6 +22,7 @@ import {
   Inbox,
   LogOut,
   Menu,
+  MonitorSmartphone,
   ReceiptText,
   ShieldCheck,
   Settings,
@@ -73,6 +74,10 @@ const adminNavItems = [
 ];
 
 const navItems = [...mainNavItems, ...adminNavItems];
+const DESKTOP_VIEW_STORAGE_KEY = "guesan-desktop-view";
+const DESKTOP_VIEW_CHANGE_EVENT = "guesan-desktop-view-change";
+const DESKTOP_VIEWPORT_CONTENT = "width=1280, initial-scale=0.3, maximum-scale=2, user-scalable=yes";
+const MOBILE_VIEWPORT_CONTENT = "width=device-width, initial-scale=1";
 
 export function AdminShell({
   user,
@@ -147,8 +152,74 @@ export function AdminShell({
         </header>
         <main className="min-h-[calc(100vh-3.5rem-1px)] px-4 py-3 md:px-6">{children}</main>
       </div>
+      <DesktopViewToggle />
     </div>
   );
+}
+
+function DesktopViewToggle() {
+  const desktopView = useSyncExternalStore(
+    subscribeDesktopView,
+    getDesktopViewSnapshot,
+    getDesktopViewServerSnapshot,
+  );
+
+  useEffect(() => {
+    applyViewport(desktopView ? DESKTOP_VIEWPORT_CONTENT : MOBILE_VIEWPORT_CONTENT);
+    document.documentElement.classList.toggle("guesan-desktop-view", desktopView);
+
+    return () => {
+      document.documentElement.classList.remove("guesan-desktop-view");
+      applyViewport(MOBILE_VIEWPORT_CONTENT);
+    };
+  }, [desktopView]);
+
+  return (
+    <button
+      type="button"
+      onClick={() => setDesktopViewPreference(!desktopView)}
+      className="desktop-view-toggle fixed right-4 bottom-4 z-50 inline-flex h-11 items-center gap-2 rounded-full border border-[#c9d8ee] bg-white/95 px-4 text-xs font-bold text-[#1f4f9f] shadow-[0_12px_32px_rgba(15,28,48,0.18)] backdrop-blur transition hover:border-[#86a9e8] hover:bg-[#eef4ff] focus-visible:ring-2 focus-visible:ring-[#2f70dc]/30 focus-visible:outline-none"
+      aria-pressed={desktopView}
+    >
+      <span className="grid size-7 place-items-center rounded-full bg-[#eaf1fd] text-[#2f70dc]">
+        <MonitorSmartphone className="size-4" />
+      </span>
+      {desktopView ? "모바일 버전으로 보기" : "PC버전으로 보기"}
+    </button>
+  );
+}
+
+function subscribeDesktopView(onStoreChange: () => void) {
+  window.addEventListener("storage", onStoreChange);
+  window.addEventListener(DESKTOP_VIEW_CHANGE_EVENT, onStoreChange);
+
+  return () => {
+    window.removeEventListener("storage", onStoreChange);
+    window.removeEventListener(DESKTOP_VIEW_CHANGE_EVENT, onStoreChange);
+  };
+}
+
+function getDesktopViewSnapshot() {
+  return window.localStorage.getItem(DESKTOP_VIEW_STORAGE_KEY) === "true";
+}
+
+function getDesktopViewServerSnapshot() {
+  return false;
+}
+
+function setDesktopViewPreference(enabled: boolean) {
+  window.localStorage.setItem(DESKTOP_VIEW_STORAGE_KEY, String(enabled));
+  window.dispatchEvent(new Event(DESKTOP_VIEW_CHANGE_EVENT));
+}
+
+function applyViewport(content: string) {
+  let viewport = document.querySelector<HTMLMetaElement>('meta[name="viewport"]');
+  if (!viewport) {
+    viewport = document.createElement("meta");
+    viewport.name = "viewport";
+    document.head.appendChild(viewport);
+  }
+  viewport.content = content;
 }
 
 function AccountMenu({

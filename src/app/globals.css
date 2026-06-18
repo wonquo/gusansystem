@@ -159,6 +159,22 @@
   font-size: 12px;
 }
 
+.desktop-view-toggle {
+  display: none;
+}
+
+@media (max-width: 1023.98px) {
+  .desktop-view-toggle {
+    display: inline-flex;
+  }
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .desktop-view-toggle {
+    display: inline-flex;
+  }
+}
+
 .ag-theme-quartz.crm-grid {
   --ag-font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --ag-font-size: 12px;
