@@ -253,8 +253,6 @@ export function WorkDiaryGrid({
         editable: (params) => !params.data?.isDeleted,
         cellClass: "erp-grid-cell work-diary-text-cell",
         cellEditor: MultilineTextCellEditor,
-        cellEditorPopup: true,
-        cellEditorPopupPosition: "under",
         wrapText: true,
         autoHeight: true,
       },
@@ -266,8 +264,6 @@ export function WorkDiaryGrid({
         editable: (params) => !params.data?.isDeleted,
         cellClass: "erp-grid-cell work-diary-text-cell",
         cellEditor: MultilineTextCellEditor,
-        cellEditorPopup: true,
-        cellEditorPopupPosition: "under",
         wrapText: true,
         autoHeight: true,
       },
@@ -294,8 +290,6 @@ export function WorkDiaryGrid({
         editable: (params) => !params.data?.isDeleted,
         cellClass: "erp-grid-cell work-diary-text-cell",
         cellEditor: MultilineTextCellEditor,
-        cellEditorPopup: true,
-        cellEditorPopupPosition: "under",
         wrapText: true,
         autoHeight: true,
       },
@@ -702,9 +696,17 @@ export function WorkDiaryGrid({
             onCellValueChanged={onCellValueChanged}
             onCellEditingStarted={(event: CellEditingStartedEvent<WorkDiaryGridRow>) => {
               setEditingClientId(event.data?.clientId ?? null);
+              if (isMultilineTextField(event.colDef.field)) {
+                event.node.setRowHeight(Math.max(event.node.rowHeight ?? 0, 104));
+                event.api.onRowHeightChanged();
+              }
             }}
             onCellEditingStopped={(event: CellEditingStoppedEvent<WorkDiaryGridRow>) => {
               setEditingClientId((current) => (current === event.data?.clientId ? null : current));
+              if (isMultilineTextField(event.colDef.field)) {
+                event.node.setRowHeight(undefined);
+                event.api.onRowHeightChanged();
+              }
             }}
             onSelectionChanged={onSelectionChanged}
             getRowClass={(params: RowClassParams<WorkDiaryGridRow>) => {
@@ -1343,6 +1345,10 @@ function MultilineTextCellEditor({
       }}
     />
   );
+}
+
+function isMultilineTextField(field: string | undefined) {
+  return field === "primaryWork" || field === "secondaryWork" || field === "memo";
 }
 
 function getRowStateLabel(row?: WorkDiaryGridRow) {
