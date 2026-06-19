@@ -669,7 +669,7 @@ export function WorkDiaryGrid({
             <span className="block h-full w-1/3 animate-pulse bg-[#2f70dc]" />
           </div>
         ) : null}
-        <div className="ag-theme-quartz erp-grid h-full w-full">
+        <div className="ag-theme-quartz erp-grid work-diary-grid h-full w-full">
           <AgGridReact
             rowData={rows}
             columnDefs={columnDefs}
@@ -702,7 +702,7 @@ export function WorkDiaryGrid({
               }
             }}
             onCellEditingStopped={(event: CellEditingStoppedEvent<WorkDiaryGridRow>) => {
-              setEditingClientId((current) => (current === event.data?.clientId ? null : current));
+              setEditingClientId(null);
               if (isMultilineTextField(event.colDef.field)) {
                 event.node.setRowHeight(undefined);
                 event.api.onRowHeightChanged();
@@ -1336,7 +1336,7 @@ function MultilineTextCellEditor({
 
         event.stopPropagation();
 
-        if (event.shiftKey || event.altKey) {
+        if (event.shiftKey || event.altKey || isCoarsePointerDevice()) {
           return;
         }
 
@@ -1349,6 +1349,11 @@ function MultilineTextCellEditor({
 
 function isMultilineTextField(field: string | undefined) {
   return field === "primaryWork" || field === "secondaryWork" || field === "memo";
+}
+
+function isCoarsePointerDevice() {
+  if (typeof window === "undefined") return false;
+  return window.matchMedia("(pointer: coarse)").matches || window.navigator.maxTouchPoints > 0;
 }
 
 function getRowStateLabel(row?: WorkDiaryGridRow) {
