@@ -10,7 +10,6 @@ import {
   type CellValueChangedEvent,
   type ColDef,
   type GetRowIdParams,
-  type GridApi,
   type ICellRendererParams,
   type RowClassParams,
   type SelectionChangedEvent,
@@ -21,11 +20,9 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
-  Loader2,
   MapPin,
   Plus,
   RefreshCw,
-  Save,
   Tags,
   Trash2,
   X,
@@ -123,7 +120,6 @@ export function WorkDiaryGrid({
   currentUser: AppUserRow;
   initialMonth: string;
 }) {
-  const gridApiRef = useRef<GridApi<WorkDiaryGridRow> | null>(null);
   const [rows, setRows] = useState(() => toGridRows(initialRows, initialWorkTypes));
   const [destinations, setDestinations] = useState(initialDestinations);
   const [workTypes, setWorkTypes] = useState(initialWorkTypes);
@@ -142,16 +138,6 @@ export function WorkDiaryGrid({
     [workTypes],
   );
   const defaultWorkTypeId = defaultWorkType?.id ?? null;
-  const dirtyCount = useMemo(
-    () =>
-      rows.filter(
-        (row) =>
-          row.isDeleted ||
-          (row.rowState === "modified" && !row.isPlaceholder) ||
-          (row.rowState === "new" && rowHasContent(row, defaultWorkTypeId)),
-      ).length,
-    [defaultWorkTypeId, rows],
-  );
 
   const destinationNameById = useMemo(() => {
     const map = new Map<string, string>();
@@ -197,24 +183,10 @@ export function WorkDiaryGrid({
         cellClass: "erp-grid-cell erp-grid-cell-row-number",
       },
       {
-        colId: "rowState",
-        headerName: "상태",
-        width: 72,
-        minWidth: 66,
-        maxWidth: 82,
-        pinned: "left",
-        sortable: false,
-        filter: false,
-        editable: false,
-        cellClass: "erp-grid-cell work-diary-state-cell",
-        cellRenderer: (params: ICellRendererParams<WorkDiaryGridRow>) => <RowStateBadge row={params.data} />,
-      },
-      {
         field: "workDate",
         headerName: "일자(요일)",
         width: 132,
-        editable: (params) => !params.data?.isDeleted,
-        cellEditor: "agDateStringCellEditor",
+        editable: false,
         cellClass: (params) => getDateCellClass(params.data?.workDate),
         valueFormatter: (params) => formatWorkDate(params.value),
       },
@@ -359,54 +331,33 @@ export function WorkDiaryGrid({
     });
   }, [isAdmin]);
 
-  const saveRows = useCallback(() => {
-    gridApiRef.current?.stopEditing();
-    const created = rows
-      .filter((row) => row.rowState === "new" && !row.isDeleted && rowHasContent(row, defaultWorkTypeId))
-      .map(toSavePayload);
-    const updated = rows
-      .filter((row) => row.rowState === "modified" && !row.isDeleted && !row.isPlaceholder)
-      .map(toSavePayload);
-    const deleted = rows
-      .filter((row) => row.isDeleted && row.rowState !== "new" && !row.isPlaceholder)
-      .map((row) => row.id);
-
-    if (!created.length && !updated.length && !deleted.length) {
-      setNotice("저장할 변경사항이 없습니다.");
+  const persistRow = useCallback((row: WorkDiaryGridRow) => {
+    if (row.isDeleted) return;
+    if ((row.isPlaceholder || row.rowState === "new") && !rowHasContent(row, defaultWorkTypeId)) {
       return;
     }
 
+    const payload = toSavePayload(row);
+    const requestBody = row.isPlaceholder || row.rowState === "new" ? { created: [payload] } : { updated: [payload] };
     startTransition(async () => {
       try {
         setError(null);
         const response = await fetch("/api/work-diaries", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ created, updated, deleted }),
+          body: JSON.stringify(requestBody),
         });
         const body = await response.json();
         if (!response.ok) {
           throw new Error(body.error ?? "업무일지 저장에 실패했습니다.");
         }
-        setNotice("업무일지를 저장했습니다.");
+        setNotice(null);
         reloadRows(month, selectedUserId);
       } catch (saveError) {
         setError(saveError instanceof Error ? saveError.message : "업무일지 저장에 실패했습니다.");
       }
     });
-  }, [defaultWorkTypeId, month, reloadRows, rows, selectedUserId]);
-
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
-        event.preventDefault();
-        saveRows();
-      }
-    }
-
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [saveRows]);
+  }, [defaultWorkTypeId, month, reloadRows, selectedUserId]);
 
   function onCellValueChanged(event: CellValueChangedEvent<WorkDiaryGridRow>) {
     const row = event.data;
@@ -415,20 +366,21 @@ export function WorkDiaryGrid({
       return;
     }
     const nextValue = normalizeCellValue(field, event.newValue);
+    const nextRow: WorkDiaryGridRow = {
+      ...row,
+      [field]: nextValue,
+      rowState: row.isPlaceholder || row.rowState === "new" ? "new" : "modified",
+      isPlaceholder: row.isPlaceholder && rowHasContent({ ...row, [field]: nextValue }, defaultWorkTypeId)
+        ? false
+        : row.isPlaceholder,
+    };
     setRows((current) =>
       current.map((item) =>
-        item.clientId === row.clientId
-          ? {
-              ...item,
-              [field]: nextValue,
-              rowState: item.isPlaceholder || item.rowState === "new" ? "new" : "modified",
-              isPlaceholder: item.isPlaceholder && rowHasContent({ ...item, [field]: nextValue }, defaultWorkTypeId)
-                ? false
-                : item.isPlaceholder,
-            }
-          : item,
+        item.clientId === row.clientId ? { ...item, ...nextRow } : item,
       ),
     );
+    setSelectedRow(nextRow);
+    persistRow(nextRow);
   }
 
   function onSelectionChanged(event: SelectionChangedEvent<WorkDiaryGridRow>) {
@@ -441,83 +393,40 @@ export function WorkDiaryGrid({
     reloadRows(nextMonth, selectedUserId);
   }
 
-  function addRow() {
-    const workDate = selectedRow?.workDate ?? `${month}-01`;
-    const sameDateRows = rows.filter((row) => row.workDate === workDate);
-    const row: WorkDiaryGridRow = {
-      id: `new:${crypto.randomUUID()}`,
-      clientId: crypto.randomUUID(),
-      userId: selectedUser.id,
-      userName: selectedUser.name,
-      workDate,
-      workType: "업무",
-      workTypeId: defaultWorkTypeId,
-      workTypeCode: defaultWorkType?.code ?? null,
-      workTypeLabel: defaultWorkType?.label ?? null,
-      workTypeColor: defaultWorkType?.color ?? null,
-      primaryWork: "",
-      secondaryWork: "",
-      destinationId: null,
-      destinationCode: null,
-      destinationLabel: null,
-      memo: "",
-      sortOrder: Math.max(0, ...sameDateRows.map((item) => item.sortOrder)) + 1,
-      isPlaceholder: false,
-      rowState: "new",
-      isDeleted: false,
-      createdAt: null,
-      updatedAt: null,
-    };
-
-    setRows((current) =>
-      [...current, row].sort((left, right) =>
-        left.workDate === right.workDate
-          ? left.sortOrder - right.sortOrder
-          : left.workDate.localeCompare(right.workDate),
-      ),
-    );
-    setSelectedRow(row);
-    setNotice(null);
-  }
-
   function deleteSelectedRow() {
     if (!selectedRow) {
       setNotice("삭제할 행을 선택해 주세요.");
       return;
     }
 
-    setRows((current) => {
-      if (selectedRow.rowState === "new") {
-        return current.filter((row) => row.clientId !== selectedRow.clientId);
-      }
-
-      if (selectedRow.isPlaceholder) {
-        return current.map((row) =>
-          row.clientId === selectedRow.clientId
-            ? {
-                ...row,
-                primaryWork: "",
-                secondaryWork: "",
-              workTypeId: defaultWorkTypeId,
-              workTypeCode: defaultWorkType?.code ?? null,
-              workTypeLabel: defaultWorkType?.label ?? null,
-              workTypeColor: defaultWorkType?.color ?? null,
-              workType: defaultWorkType?.label ?? "업무",
-                destinationId: null,
-                destinationCode: null,
-                destinationLabel: null,
-                memo: "",
-                rowState: "clean",
-              }
-            : row,
-        );
-      }
-
-      return current.map((row) =>
-        row.clientId === selectedRow.clientId ? { ...row, isDeleted: true } : row,
+    if (selectedRow.isPlaceholder || selectedRow.rowState === "new") {
+      setRows((current) =>
+        current.map((row) =>
+          row.clientId === selectedRow.clientId ? resetPlaceholderRow(row, defaultWorkType) : row,
+        ),
       );
+      setNotice(null);
+      return;
+    }
+
+    startTransition(async () => {
+      try {
+        setError(null);
+        const response = await fetch("/api/work-diaries", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ deleted: [selectedRow.id] }),
+        });
+        const body = await response.json();
+        if (!response.ok) {
+          throw new Error(body.error ?? "업무일지 삭제에 실패했습니다.");
+        }
+        setNotice("업무일지를 삭제했습니다.");
+        reloadRows(month, selectedUserId);
+      } catch (deleteError) {
+        setError(deleteError instanceof Error ? deleteError.message : "업무일지 삭제에 실패했습니다.");
+      }
     });
-    setNotice("삭제 표시되었습니다. 저장하면 반영됩니다.");
   }
 
   return (
@@ -530,9 +439,6 @@ export function WorkDiaryGrid({
           <Badge variant="outline" className="h-7 w-fit border-[#cfd9e7] bg-white px-2.5 text-xs">
             {rows.length.toLocaleString()}건
           </Badge>
-          {dirtyCount ? (
-            <Badge className="h-7 w-fit px-2.5 text-xs">{dirtyCount.toLocaleString()}건 변경</Badge>
-          ) : null}
         </div>
       </div>
 
@@ -607,10 +513,6 @@ export function WorkDiaryGrid({
             )}
           </div>
           <div className="flex flex-col gap-2 bg-[#f8fafc] p-2 lg:min-w-[620px] lg:flex-row lg:items-center lg:justify-end">
-            <Button type="button" variant="outline" size="sm" onClick={addRow} disabled={isPending}>
-              <Plus className="size-3.5" />
-              행 추가
-            </Button>
             <Button type="button" variant="outline" size="sm" onClick={deleteSelectedRow} disabled={isPending}>
               <Trash2 className="size-3.5" />
               행 삭제
@@ -640,10 +542,6 @@ export function WorkDiaryGrid({
             <Button type="button" variant="outline" size="sm" onClick={() => reloadRows()} disabled={isPending}>
               <RefreshCw className="size-3.5" />
               새로고침
-            </Button>
-            <Button type="button" size="sm" disabled={isPending} onClick={saveRows}>
-              {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
-              저장
             </Button>
           </div>
         </div>
@@ -689,7 +587,6 @@ export function WorkDiaryGrid({
             suppressDragLeaveHidesColumns
             stopEditingWhenCellsLoseFocus
             onGridReady={(event) => {
-              gridApiRef.current = event.api;
               event.api.getDisplayedRowAtIndex(0)?.setSelected(true);
             }}
             onCellValueChanged={onCellValueChanged}
@@ -1252,11 +1149,6 @@ function WorkTypeDialog({
   );
 }
 
-function RowStateBadge({ row }: { row?: WorkDiaryGridRow }) {
-  const label = getRowStateLabel(row);
-  return label ? <span className={`work-diary-state-chip ${label.className}`}>{label.text}</span> : null;
-}
-
 function WorkTypeBadge({ label, color }: { label: string; color: string }) {
   return (
     <span
@@ -1382,14 +1274,6 @@ function isCoarsePointerDevice() {
   return window.matchMedia("(pointer: coarse)").matches || window.navigator.maxTouchPoints > 0;
 }
 
-function getRowStateLabel(row?: WorkDiaryGridRow) {
-  if (!row) return null;
-  if (row.isDeleted) return { text: "삭제", className: "is-delete" };
-  if (row.rowState === "new") return { text: "신규", className: "is-new" };
-  if (row.rowState === "modified") return { text: "수정", className: "is-modified" };
-  return null;
-}
-
 function toGridRows(rows: WorkDiaryRow[], workTypes: WorkDiaryTypeRow[]): WorkDiaryGridRow[] {
   const defaultWorkType =
     workTypes.find((item) => item.code === "WORK" && item.isActive) ?? workTypes.find((item) => item.isActive) ?? null;
@@ -1404,6 +1288,28 @@ function toGridRows(rows: WorkDiaryRow[], workTypes: WorkDiaryTypeRow[]): WorkDi
     rowState: "clean",
     isDeleted: false,
   }));
+}
+
+function resetPlaceholderRow(
+  row: WorkDiaryGridRow,
+  defaultWorkType: WorkDiaryTypeRow | null,
+): WorkDiaryGridRow {
+  return {
+    ...row,
+    primaryWork: "",
+    secondaryWork: "",
+    workTypeId: defaultWorkType?.id ?? null,
+    workTypeCode: defaultWorkType?.code ?? null,
+    workTypeLabel: defaultWorkType?.label ?? null,
+    workTypeColor: defaultWorkType?.color ?? null,
+    workType: defaultWorkType?.label ?? "업무",
+    destinationId: null,
+    destinationCode: null,
+    destinationLabel: null,
+    memo: "",
+    rowState: "clean",
+    isDeleted: false,
+  };
 }
 
 function toSavePayload(row: WorkDiaryGridRow) {

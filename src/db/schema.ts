@@ -542,6 +542,7 @@ export const workDiaryEntries = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
+    uniqueIndex("work_diary_entries_user_date_unique_idx").on(table.userId, table.workDate),
     index("work_diary_entries_user_date_idx").on(table.userId, table.workDate),
     index("work_diary_entries_date_idx").on(table.workDate),
     index("work_diary_entries_type_idx").on(table.workTypeId),

@@ -184,7 +184,7 @@ export async function listWorkDiaryRows({
     updatedAt: entry.updatedAt.toISOString(),
   }));
 
-  return mergeMonthlyPlaceholders(normalizedMonth, owner.id, owner.name, serialized);
+  return mergeMonthlyPlaceholders(normalizedMonth, owner.id, owner.name, dedupeWorkDiaryRowsByDate(serialized));
 }
 
 export async function saveWorkDiaryBulk({
@@ -211,7 +211,7 @@ export async function saveWorkDiaryBulk({
     const workDate = normalizeWorkDate(row.workDate);
     const userId = role === "admin" && row.userId ? row.userId : currentUserId;
     const selectedWorkType = role === "admin" ? await resolveWorkType(row.workTypeId, defaultWorkType) : defaultWorkType;
-    await db.insert(workDiaryEntries).values({
+    const values = {
       userId,
       workDate,
       workType: selectedWorkType?.label ?? "업무",
@@ -222,7 +222,23 @@ export async function saveWorkDiaryBulk({
       memo: normalizeText(row.memo),
       sortOrder: normalizeSortOrder(row.sortOrder),
       updatedAt: now,
-    });
+    };
+    await db
+      .insert(workDiaryEntries)
+      .values(values)
+      .onConflictDoUpdate({
+        target: [workDiaryEntries.userId, workDiaryEntries.workDate],
+        set: {
+          workType: values.workType,
+          workTypeId: values.workTypeId,
+          primaryWork: values.primaryWork,
+          secondaryWork: values.secondaryWork,
+          destinationId: values.destinationId,
+          memo: values.memo,
+          sortOrder: values.sortOrder,
+          updatedAt: now,
+        },
+      });
   }
 
   for (const row of updated) {
@@ -239,6 +255,7 @@ export async function saveWorkDiaryBulk({
       throw new Error("본인 업무일지만 수정할 수 있습니다.");
     }
 
+    const workDate = row.workDate ? normalizeWorkDate(row.workDate) : existing.workDate;
     const selectedWorkType =
       role === "admin" ? await resolveWorkType(row.workTypeId ?? existing.workTypeId, defaultWorkType) : null;
     const workTypePatch =
@@ -248,19 +265,33 @@ export async function saveWorkDiaryBulk({
             workTypeId: selectedWorkType?.id ?? null,
           }
         : {};
+    const patch = {
+      workDate,
+      ...workTypePatch,
+      primaryWork: normalizeText(row.primaryWork),
+      secondaryWork: normalizeText(row.secondaryWork),
+      destinationId: normalizeNullableId(row.destinationId),
+      memo: normalizeText(row.memo),
+      sortOrder: normalizeSortOrder(row.sortOrder),
+      updatedAt: now,
+    };
+
+    const duplicate =
+      workDate === existing.workDate
+        ? null
+        : await db.query.workDiaryEntries.findFirst({
+            where: and(eq(workDiaryEntries.userId, existing.userId), eq(workDiaryEntries.workDate, workDate)),
+          });
+
+    if (duplicate) {
+      await db.update(workDiaryEntries).set(patch).where(eq(workDiaryEntries.id, duplicate.id));
+      await db.delete(workDiaryEntries).where(eq(workDiaryEntries.id, existing.id));
+      continue;
+    }
 
     await db
       .update(workDiaryEntries)
-      .set({
-        workDate: row.workDate ? normalizeWorkDate(row.workDate) : existing.workDate,
-        ...workTypePatch,
-        primaryWork: normalizeText(row.primaryWork),
-        secondaryWork: normalizeText(row.secondaryWork),
-        destinationId: normalizeNullableId(row.destinationId),
-        memo: normalizeText(row.memo),
-        sortOrder: normalizeSortOrder(row.sortOrder),
-        updatedAt: now,
-      })
+      .set(patch)
       .where(eq(workDiaryEntries.id, row.id));
   }
 
@@ -415,6 +446,34 @@ function mergeMonthlyPlaceholders(
     }
   }
   return result;
+}
+
+function dedupeWorkDiaryRowsByDate(rows: WorkDiaryRow[]) {
+  const byDate = new Map<string, WorkDiaryRow>();
+  for (const row of rows) {
+    const existing = byDate.get(row.workDate);
+    if (!existing || compareWorkDiaryRowsForKeep(row, existing) > 0) {
+      byDate.set(row.workDate, row);
+    }
+  }
+  return [...byDate.values()].sort((left, right) => left.workDate.localeCompare(right.workDate));
+}
+
+function compareWorkDiaryRowsForKeep(left: WorkDiaryRow, right: WorkDiaryRow) {
+  const scoreDiff = workDiaryContentScore(left) - workDiaryContentScore(right);
+  if (scoreDiff !== 0) return scoreDiff;
+  return (left.updatedAt ?? "").localeCompare(right.updatedAt ?? "") ||
+    (left.createdAt ?? "").localeCompare(right.createdAt ?? "");
+}
+
+function workDiaryContentScore(row: WorkDiaryRow) {
+  return [
+    row.primaryWork,
+    row.secondaryWork,
+    row.memo,
+    row.destinationId,
+    row.workTypeId,
+  ].filter((value) => normalizeText(value)).length;
 }
 
 function buildPlaceholderRows(month: string, userId: string, userName: string) {
