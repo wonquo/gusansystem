@@ -5,6 +5,7 @@ export type ErpMenuKey =
   | "board"
   | "calendar"
   | "work-diaries"
+  | "memos"
   | "projects"
   | "tax-invoices"
   | "bank"
@@ -25,6 +26,7 @@ export const ERP_MENUS: {
   { key: "board", label: "게시판", href: "/board" },
   { key: "calendar", label: "캘린더", href: "/calendar" },
   { key: "work-diaries", label: "업무일지", href: "/work-diaries" },
+  { key: "memos", label: "메모", href: "/memos" },
   { key: "projects", label: "프로젝트 관리", href: "/projects", adminOnly: true },
   { key: "tax-invoices", label: "전자세금계산서", href: "/tax-invoices", adminOnly: true },
   { key: "bank", label: "법인통장", href: "/bank", adminOnly: true },
@@ -54,6 +56,7 @@ export function isMenuVisibleForRole(role: AppUserRole, menuKey: ErpMenuKey) {
     menuKey === "board" ||
     menuKey === "dashboard" ||
     menuKey === "calendar" ||
-    menuKey === "work-diaries"
+    menuKey === "work-diaries" ||
+    menuKey === "memos"
   );
 }

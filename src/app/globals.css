@@ -329,15 +329,6 @@
   box-shadow: inset 3px 0 0 #2f70dc;
 }
 
-.erp-grid .work-diary-row-editing {
-  background: #f8fbff;
-}
-
-.erp-grid .work-diary-row-editing .ag-cell {
-  border-bottom-color: var(--ag-border-color);
-  border-top-color: var(--ag-border-color);
-}
-
 .erp-grid .ag-cell-inline-editing {
   border-color: #2f70dc !important;
   box-shadow: inset 0 0 0 1px #2f70dc;
@@ -454,6 +445,32 @@
   background: #f5f7fa;
   border-color: #d8e0ea;
   color: #475569;
+}
+
+.memo-rich-editor ul,
+.memo-rich-editor ol {
+  margin: 0.25rem 0 0.25rem 1.25rem;
+  padding-left: 1rem;
+}
+
+.memo-rich-editor ul {
+  list-style: disc;
+}
+
+.memo-rich-editor ol {
+  list-style: decimal;
+}
+
+.memo-rich-editor a {
+  color: #1f4f9f;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.memo-rich-editor:empty::before {
+  color: #94a3b8;
+  content: "메모 내용을 입력하세요";
 }
 
 .crm-grid .crm-multiline-cell {

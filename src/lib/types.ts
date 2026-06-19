@@ -164,6 +164,17 @@ export type BoardPostDetailRow = BoardPostRow & {
   comments: BoardCommentRow[];
 };
 
+export type MemoRow = {
+  id: string;
+  title: string;
+  content: string;
+  attachments: BoardAttachment[];
+  createdBy: string | null;
+  authorName: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type CalendarEventCategory = "휴가" | "출장" | "회의" | "교육" | "외근" | "기타";
 
 export type CalendarEventAttendee = {

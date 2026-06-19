@@ -28,6 +28,7 @@ import {
   ShieldCheck,
   Settings,
   Star,
+  StickyNote,
   UserCircle,
   UsersRound,
   WalletCards,
@@ -62,6 +63,7 @@ const mainNavItems = [
   { href: "/board", label: "게시판", icon: BookOpenText },
   { href: "/calendar", label: "캘린더", icon: CalendarDays },
   { href: "/work-diaries", label: "업무일지", icon: FileText },
+  { href: "/memos", label: "메모", icon: StickyNote },
 ];
 
 const adminNavItems = [

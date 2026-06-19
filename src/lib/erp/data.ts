@@ -806,14 +806,16 @@ export function buildDefaultPermissions() {
         menu.key === "dashboard" ||
         menu.key === "board" ||
         menu.key === "calendar" ||
-        menu.key === "work-diaries",
+        menu.key === "work-diaries" ||
+        menu.key === "memos",
       canCreate:
         role === "admin" ||
         menu.key === "board" ||
         menu.key === "calendar" ||
-        menu.key === "work-diaries",
-      canUpdate: role === "admin" || menu.key === "work-diaries",
-      canDelete: role === "admin" || menu.key === "work-diaries",
+        menu.key === "work-diaries" ||
+        menu.key === "memos",
+      canUpdate: role === "admin" || menu.key === "work-diaries" || menu.key === "memos",
+      canDelete: role === "admin" || menu.key === "work-diaries" || menu.key === "memos",
       canUpload: role === "admin",
       createdAt: null,
       updatedAt: null,

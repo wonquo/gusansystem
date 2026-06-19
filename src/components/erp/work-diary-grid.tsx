@@ -134,7 +134,6 @@ export function WorkDiaryGrid({
   const [notice, setNotice] = useState<string | null>(null);
   const [isDestinationDialogOpen, setIsDestinationDialogOpen] = useState(false);
   const [isWorkTypeDialogOpen, setIsWorkTypeDialogOpen] = useState(false);
-  const [editingClientId, setEditingClientId] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const isAdmin = currentUser.role === "admin";
   const todayText = useMemo(() => formatDateInputValue(new Date()), []);
@@ -695,14 +694,12 @@ export function WorkDiaryGrid({
             }}
             onCellValueChanged={onCellValueChanged}
             onCellEditingStarted={(event: CellEditingStartedEvent<WorkDiaryGridRow>) => {
-              setEditingClientId(event.data?.clientId ?? null);
               if (isMultilineTextField(event.colDef.field)) {
                 event.node.setRowHeight(Math.max(event.node.rowHeight ?? 0, 104));
                 event.api.onRowHeightChanged();
               }
             }}
             onCellEditingStopped={(event: CellEditingStoppedEvent<WorkDiaryGridRow>) => {
-              setEditingClientId(null);
               if (isMultilineTextField(event.colDef.field)) {
                 event.node.setRowHeight(undefined);
                 event.api.onRowHeightChanged();
@@ -712,7 +709,6 @@ export function WorkDiaryGrid({
             getRowClass={(params: RowClassParams<WorkDiaryGridRow>) => {
               const classes = [];
               if (params.data?.workDate === todayText) classes.push("work-diary-row-today");
-              if (params.data?.clientId === editingClientId) classes.push("work-diary-row-editing");
               if (params.data?.isDeleted) classes.push("work-diary-row-deleted");
               else if (params.data?.rowState === "new") classes.push("work-diary-row-new");
               else if (params.data?.rowState === "modified") classes.push("work-diary-row-modified");
@@ -1310,6 +1306,19 @@ function MultilineTextCellEditor({
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const [textValue, setTextValue] = useState(String(value ?? ""));
 
+  function insertLineBreak(textarea: HTMLTextAreaElement) {
+    if (typeof textarea.selectionStart !== "number" || typeof textarea.selectionEnd !== "number") {
+      const nextValue = `${textarea.value}\n`;
+      setTextValue(nextValue);
+      onValueChange(nextValue);
+      return;
+    }
+
+    textarea.setRangeText("\n", textarea.selectionStart, textarea.selectionEnd, "end");
+    setTextValue(textarea.value);
+    onValueChange(textarea.value);
+  }
+
   useEffect(() => {
     window.requestAnimationFrame(() => {
       const textarea = textareaRef.current;
@@ -1324,10 +1333,21 @@ function MultilineTextCellEditor({
     <textarea
       ref={textareaRef}
       className="work-diary-multiline-editor"
+      enterKeyHint="enter"
       value={textValue}
       onChange={(event) => {
         setTextValue(event.target.value);
         onValueChange(event.target.value);
+      }}
+      onBeforeInput={(event) => {
+        const inputEvent = event.nativeEvent as InputEvent;
+        if (!isCoarsePointerDevice() || !["insertLineBreak", "insertParagraph"].includes(inputEvent.inputType)) {
+          return;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+        insertLineBreak(event.currentTarget);
       }}
       onKeyDown={(event) => {
         if (event.key !== "Enter") {
@@ -1336,7 +1356,13 @@ function MultilineTextCellEditor({
 
         event.stopPropagation();
 
-        if (event.shiftKey || event.altKey || isCoarsePointerDevice()) {
+        if (isCoarsePointerDevice()) {
+          event.preventDefault();
+          insertLineBreak(event.currentTarget);
+          return;
+        }
+
+        if (event.shiftKey || event.altKey) {
           return;
         }
 
