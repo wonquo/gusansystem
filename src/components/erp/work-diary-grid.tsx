@@ -1259,7 +1259,12 @@ function maintainMultilineEditorRowHeight(event: CellEditingStartedEvent<WorkDia
   const isStillEditing = () =>
     event.api
       .getEditingCells()
-      .some((cell) => cell.rowIndex === rowIndex && cell.rowPinned === rowPinned && cell.column.getColId() === columnId);
+      .some(
+        (cell) =>
+          cell.rowIndex === rowIndex &&
+          cell.rowPinned === rowPinned &&
+          cell.column?.getColId() === columnId,
+      );
 
   const applyRowHeight = () => {
     event.node.setRowHeight(rowHeight);
