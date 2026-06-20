@@ -1,291 +1,263 @@
 import Link from "next/link";
-import {
-  ArrowRight,
-  CalendarDays,
-  Clock3,
-  MapPin,
-  Megaphone,
-  MessageCircle,
-  Paperclip,
-  Users,
-} from "lucide-react";
-import { listBoardPosts } from "@/lib/board";
+import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 import { listCalendarEvents } from "@/lib/calendar";
-import type { BoardPostRow, CalendarEventCategory, CalendarEventRow } from "@/lib/types";
+import { listNotices } from "@/lib/notices";
+import type { CalendarEventCategory, CalendarEventRow, NoticeRow } from "@/lib/types";
 
-const CATEGORY_STYLES: Record<CalendarEventCategory, string> = {
-  휴가: "border-emerald-200 bg-emerald-50 text-emerald-700",
-  출장: "border-sky-200 bg-sky-50 text-sky-700",
-  회의: "border-indigo-200 bg-indigo-50 text-indigo-700",
-  교육: "border-amber-200 bg-amber-50 text-amber-700",
-  외근: "border-rose-200 bg-rose-50 text-rose-700",
-  기타: "border-slate-200 bg-slate-50 text-slate-700",
+const DAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
+
+const EVENT_COLORS: Record<CalendarEventCategory, string> = {
+  휴가: "bg-[#21ad73]",
+  출장: "bg-[#2f70dc]",
+  회의: "bg-[#2f70dc]",
+  교육: "bg-[#f5b23f]",
+  외근: "bg-[#21ad73]",
+  기타: "bg-[#9aa8bc]",
 };
 
 export default async function DashboardPage() {
-  const [calendarEvents, boardPosts] = await Promise.all([listCalendarEvents(), listBoardPosts()]);
+  const [notices, calendarEvents] = await Promise.all([listNotices(), listCalendarEvents()]);
   const today = getKoreaDateValue();
-  const importantEvents = calendarEvents
+  const monthStart = today.slice(0, 7);
+  const monthCells = createMonthCells(monthStart);
+  const selectedEvents = calendarEvents
+    .filter((event) => event.startDate <= today && event.endDate >= today)
+    .sort(compareCalendarEvents);
+  const upcomingEvents = calendarEvents
     .filter((event) => event.endDate >= today)
-    .sort(compareCalendarEvents)
-    .slice(0, 10);
-  const latestNoticePosts = boardPosts.filter((post) => post.category === "공지").slice(0, 10);
+    .sort(compareCalendarEvents);
+  const agendaEvents = selectedEvents.length > 0 ? selectedEvents : upcomingEvents.slice(0, 3);
+  const visibleNotices = notices.slice(0, 5);
 
   return (
-    <main className="min-h-[calc(100vh-120px)] bg-[#f6f8fb] px-4 py-5 sm:px-6 lg:px-8">
-      <div className="mx-auto flex max-w-7xl flex-col gap-5">
-        <section className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
-          <div className="rounded-lg border border-[#dfe6f0] bg-white px-5 py-5 shadow-sm">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#58708f]">
-                  Workspace Dashboard
+    <main className="min-h-[calc(100vh-6rem)] bg-[#f6f7f9] px-2 py-4 sm:px-4 lg:px-6">
+      <section className="mx-auto grid max-w-[1180px] gap-5 xl:grid-cols-2">
+        <DashboardCard className="min-h-[510px]">
+          <div className="flex items-center justify-between border-b border-[#eceff3] pb-5">
+            <h1 className="text-xl font-bold tracking-normal text-[#171b26]">공지사항</h1>
+            <Link
+              href="/notices"
+              className="inline-flex items-center gap-1 text-sm font-semibold text-[#747d8c] transition hover:text-[#1f6fff]"
+            >
+              전체보기
+              <ChevronRight className="size-4" />
+            </Link>
+          </div>
+
+          <div className="mt-6 space-y-5">
+            {visibleNotices.length > 0 ? (
+              visibleNotices.map((notice) => <NoticeListItem key={notice.id} notice={notice} />)
+            ) : (
+              <EmptyState
+                title="등록된 공지사항이 없습니다"
+                description="새 공지를 작성하면 이곳에 표시됩니다."
+              />
+            )}
+          </div>
+        </DashboardCard>
+
+        <DashboardCard className="min-h-[510px]">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-xl font-bold tracking-normal text-[#171b26]">캘린더</h2>
+            <div className="flex items-center gap-5">
+              <Link
+                href="/calendar"
+                className="rounded-md border border-[#e4e9f0] px-4 py-2 text-sm font-bold text-[#373f4f] shadow-sm transition hover:border-[#cbd5e1] hover:bg-[#f8fafc]"
+              >
+                오늘
+              </Link>
+              <div className="flex items-center gap-5">
+                <Link
+                  href="/calendar"
+                  className="text-[#4b5565] transition hover:text-[#1f6fff]"
+                  aria-label="캘린더로 이동"
+                >
+                  <ChevronLeft className="size-5" />
+                </Link>
+                <p className="min-w-[112px] text-center text-lg font-bold text-[#202838]">
+                  {formatMonthTitle(monthStart)}
                 </p>
-                <h1 className="mt-2 text-2xl font-bold text-[#0d1b3d] sm:text-3xl">
-                  오늘 확인할 업무 흐름
-                </h1>
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-[#66748a]">
-                  캘린더 일정과 최신 공지를 한 화면에서 빠르게 확인하세요.
-                </p>
-              </div>
-              <div className="rounded-lg border border-[#e3eaf3] bg-[#f8fafc] px-4 py-3 text-right">
-                <p className="text-xs font-medium text-[#66748a]">오늘</p>
-                <p className="mt-1 text-lg font-bold text-[#0d1b3d]">{formatFullDate(today)}</p>
+                <Link
+                  href="/calendar"
+                  className="text-[#4b5565] transition hover:text-[#1f6fff]"
+                  aria-label="캘린더로 이동"
+                >
+                  <ChevronRight className="size-5" />
+                </Link>
               </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <DashboardMetric
-              icon={<CalendarDays className="size-5" />}
-              label="주요일정"
-              value={importantEvents.length}
-              href="/calendar"
-            />
-            <DashboardMetric
-              icon={<Megaphone className="size-5" />}
-              label="공지게시글"
-              value={latestNoticePosts.length}
-              href="/board"
-            />
-          </div>
-        </section>
-
-        <section className="grid gap-5 xl:grid-cols-[1.08fr_0.92fr]">
-          <div className="overflow-hidden rounded-lg border border-[#dfe6f0] bg-white shadow-sm">
-            <SectionHeader
-              eyebrow="Calendar"
-              title="주요일정"
-              description="오늘 이후 진행 예정인 캘린더 일정 10개"
-              href="/calendar"
-            />
-            <div className="divide-y divide-[#edf1f6]">
-              {importantEvents.length > 0 ? (
-                importantEvents.map((event) => <CalendarEventItem key={event.id} event={event} />)
-              ) : (
-                <EmptyState
-                  icon={<CalendarDays className="size-6" />}
-                  title="예정된 일정이 없습니다"
-                  description="캘린더에 일정을 추가하면 이곳에 표시됩니다."
-                />
-              )}
-            </div>
+          <div className="mt-6 grid grid-cols-7 text-center text-sm font-bold text-[#545f70]">
+            {DAY_LABELS.map((day) => (
+              <div key={day} className="py-2">
+                {day}
+              </div>
+            ))}
           </div>
 
-          <div className="overflow-hidden rounded-lg border border-[#dfe6f0] bg-white shadow-sm">
-            <SectionHeader
-              eyebrow="Notice"
-              title="최신 공지게시글"
-              description="게시판 공지 카테고리 최신 기준 10개"
-              href="/board"
-            />
-            <div className="divide-y divide-[#edf1f6]">
-              {latestNoticePosts.length > 0 ? (
-                latestNoticePosts.map((post) => <NoticePostItem key={post.id} post={post} />)
-              ) : (
-                <EmptyState
-                  icon={<Megaphone className="size-6" />}
-                  title="등록된 공지게시글이 없습니다"
-                  description="게시판에 공지 카테고리 글을 작성하면 이곳에 표시됩니다."
-                />
-              )}
-            </div>
+          <div className="grid grid-cols-7 gap-y-2 text-center">
+            {monthCells.map((cell) => (
+              <CalendarDayCell
+                key={cell.value}
+                cell={cell}
+                today={today}
+                events={eventsForDate(calendarEvents, cell.value)}
+              />
+            ))}
           </div>
-        </section>
-      </div>
+
+          <div className="mt-6 border-t border-[#edf0f4] pt-5">
+            {agendaEvents.length > 0 ? (
+              <div className="space-y-4">
+                {agendaEvents.map((event) => <AgendaItem key={event.id} event={event} today={today} />)}
+              </div>
+            ) : (
+              <div className="flex items-center gap-3 text-sm text-[#7a8494]">
+                <CalendarDays className="size-4" />
+                예정된 일정이 없습니다.
+              </div>
+            )}
+            {upcomingEvents.length > agendaEvents.length ? (
+              <Link
+                href="/calendar"
+                className="mt-5 block text-right text-sm font-semibold text-[#7a8494] transition hover:text-[#1f6fff]"
+              >
+                + {upcomingEvents.length - agendaEvents.length}건 더보기
+              </Link>
+            ) : null}
+          </div>
+        </DashboardCard>
+      </section>
     </main>
   );
 }
 
-function DashboardMetric({
-  icon,
-  label,
-  value,
-  href,
+function DashboardCard({
+  children,
+  className = "",
 }: {
-  icon: React.ReactNode;
-  label: string;
-  value: number;
-  href: string;
+  children: React.ReactNode;
+  className?: string;
 }) {
   return (
-    <Link
-      href={href}
-      className="group rounded-lg border border-[#dfe6f0] bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-[#b9c7dc] hover:shadow-md"
+    <div
+      className={`rounded-lg border border-[#eceff3] bg-white px-6 py-7 shadow-[0_14px_34px_rgba(28,39,64,0.08)] sm:px-8 ${className}`}
     >
-      <div className="flex items-center justify-between gap-3">
-        <span className="flex size-10 items-center justify-center rounded-lg bg-[#eef4ff] text-[#2f70dc]">
-          {icon}
-        </span>
-        <ArrowRight className="size-4 text-[#9aa8bc] transition group-hover:translate-x-0.5 group-hover:text-[#2f70dc]" />
-      </div>
-      <p className="mt-4 text-sm font-medium text-[#66748a]">{label}</p>
-      <p className="mt-1 text-3xl font-bold text-[#0d1b3d]">{value}</p>
-    </Link>
+      {children}
+    </div>
   );
 }
 
-function SectionHeader({
-  eyebrow,
-  title,
-  description,
-  href,
-}: {
-  eyebrow: string;
-  title: string;
-  description: string;
-  href: string;
-}) {
+function NoticeListItem({ notice }: { notice: NoticeRow }) {
+  const badge = getNoticeBadge(notice);
+
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#edf1f6] px-5 py-4">
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#58708f]">
-          {eyebrow}
-        </p>
-        <div className="mt-1 flex flex-wrap items-end gap-x-3 gap-y-1">
-          <h2 className="text-lg font-bold text-[#0d1b3d]">{title}</h2>
-          <p className="text-xs text-[#66748a]">{description}</p>
-        </div>
-      </div>
-      <Link
-        href={href}
-        className="inline-flex items-center gap-1.5 rounded-md border border-[#d6dfeb] px-3 py-2 text-xs font-semibold text-[#274569] transition hover:border-[#aebdd0] hover:bg-[#f8fafc]"
+    <article className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-4">
+      <span
+        className={`inline-flex h-8 min-w-12 items-center justify-center rounded-md border px-2 text-sm font-bold ${badge.className}`}
       >
-        전체보기
-        <ArrowRight className="size-3.5" />
-      </Link>
-    </div>
-  );
-}
-
-function CalendarEventItem({ event }: { event: CalendarEventRow }) {
-  const attendeeNames = event.attendees.map((attendee) => attendee.name).join(", ");
-
-  return (
-    <Link
-      href="/calendar"
-      className="grid gap-3 px-5 py-4 transition hover:bg-[#f8fbff] sm:grid-cols-[108px_1fr] sm:items-start"
-    >
-      <div className="flex items-center gap-3 sm:block">
-        <div className="w-[76px] rounded-lg border border-[#dce5f0] bg-[#f8fafc] px-3 py-2 text-center">
-          <p className="text-xs font-semibold text-[#58708f]">{formatMonth(event.startDate)}</p>
-          <p className="mt-0.5 text-2xl font-bold leading-none text-[#0d1b3d]">
-            {formatDay(event.startDate)}
-          </p>
-        </div>
-        <span
-          className={`inline-flex items-center rounded-md border px-2.5 py-1 text-xs font-semibold sm:mt-2 ${
-            CATEGORY_STYLES[event.category]
-          }`}
-        >
-          {event.category}
-        </span>
-      </div>
+        {badge.label}
+      </span>
       <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-2">
-          <h3 className="truncate text-sm font-bold text-[#0d1b3d]">{event.title}</h3>
-          {isMultiDay(event) ? (
-            <span className="rounded-md bg-[#eef2f7] px-2 py-0.5 text-[11px] font-semibold text-[#526079]">
-              연속 일정
-            </span>
-          ) : null}
-        </div>
-        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-[#66748a]">
-          <span className="inline-flex items-center gap-1.5">
-            <Clock3 className="size-3.5" />
-            {formatEventSchedule(event)}
-          </span>
-          {event.location ? (
-            <span className="inline-flex items-center gap-1.5">
-              <MapPin className="size-3.5" />
-              {event.location}
-            </span>
-          ) : null}
-          {attendeeNames ? (
-            <span className="inline-flex min-w-0 items-center gap-1.5">
-              <Users className="size-3.5 shrink-0" />
-              <span className="truncate">{attendeeNames}</span>
-            </span>
-          ) : null}
-        </div>
-        {event.note ? <p className="mt-2 line-clamp-1 text-xs text-[#7a8799]">{event.note}</p> : null}
+        <h3 className="truncate text-base font-semibold text-[#202838]">{notice.title}</h3>
       </div>
-    </Link>
+      <time className="text-xs font-medium text-[#8a94a6]" dateTime={notice.createdAt}>
+        {formatDotDate(notice.createdAt)}
+      </time>
+    </article>
   );
 }
 
-function NoticePostItem({ post }: { post: BoardPostRow }) {
-  return (
-    <Link href={`/board/${post.id}`} className="block px-5 py-4 transition hover:bg-[#f8fbff]">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-md bg-[#eef4ff] px-2 py-0.5 text-[11px] font-semibold text-[#2f70dc]">
-              공지
-            </span>
-            {post.attachments.length > 0 ? (
-              <span className="inline-flex items-center gap-1 rounded-md bg-[#f4f7fb] px-2 py-0.5 text-[11px] font-semibold text-[#526079]">
-                <Paperclip className="size-3" />
-                {post.attachments.length.toLocaleString("ko-KR")}
-              </span>
-            ) : null}
-          </div>
-          <h3 className="mt-2 truncate text-sm font-bold text-[#0d1b3d]">{post.title}</h3>
-          <p className="mt-1 line-clamp-2 text-xs leading-5 text-[#66748a]">
-            {stripHtml(post.content) || "내용 없음"}
-          </p>
-        </div>
-        <div className="shrink-0 text-right text-xs text-[#7a8799]">
-          <p>{formatShortDate(post.createdAt)}</p>
-          <p className="mt-2 inline-flex items-center gap-1">
-            <MessageCircle className="size-3.5" />
-            {post.commentCount.toLocaleString("ko-KR")}
-          </p>
-        </div>
-      </div>
-      <p className="mt-3 text-xs text-[#8a96a8]">{post.authorName ?? "알 수 없음"}</p>
-    </Link>
-  );
-}
-
-function EmptyState({
-  icon,
-  title,
-  description,
+function CalendarDayCell({
+  cell,
+  today,
+  events,
 }: {
-  icon: React.ReactNode;
-  title: string;
-  description: string;
+  cell: MonthCell;
+  today: string;
+  events: CalendarEventRow[];
 }) {
+  const isToday = cell.value === today;
+  const isSunday = new Date(`${cell.value}T00:00:00+09:00`).getDay() === 0;
+
   return (
-    <div className="flex min-h-[240px] flex-col items-center justify-center px-5 py-10 text-center">
-      <div className="flex size-12 items-center justify-center rounded-lg bg-[#eef4ff] text-[#2f70dc]">
-        {icon}
-      </div>
-      <p className="mt-4 text-sm font-bold text-[#0d1b3d]">{title}</p>
-      <p className="mt-1 text-xs text-[#66748a]">{description}</p>
+    <div className="flex min-h-11 flex-col items-center justify-center gap-1">
+      <span
+        className={[
+          "grid size-9 place-items-center rounded-full text-sm font-semibold",
+          isToday ? "bg-[#1f6fff] text-white shadow-[0_8px_18px_rgba(31,111,255,0.28)]" : "",
+          !isToday && cell.isCurrentMonth ? "text-[#202838]" : "",
+          !isToday && !cell.isCurrentMonth ? "text-[#c6ccd5]" : "",
+          !isToday && isSunday && cell.isCurrentMonth ? "text-[#e2576a]" : "",
+        ].join(" ")}
+      >
+        {Number(cell.value.slice(-2))}
+      </span>
+      <span className="flex h-1.5 items-center justify-center gap-1">
+        {events.slice(0, 3).map((event) => (
+          <span key={event.id} className={`size-1.5 rounded-full ${EVENT_COLORS[event.category]}`} />
+        ))}
+      </span>
     </div>
   );
+}
+
+function AgendaItem({ event, today }: { event: CalendarEventRow; today: string }) {
+  const timeLabel = event.allDay ? "종일" : event.startTime;
+
+  return (
+    <Link href="/calendar" className="grid grid-cols-[auto_auto_1fr] items-center gap-3">
+      <span className={`size-2.5 rounded-full ${EVENT_COLORS[event.category]}`} />
+      <time className="w-12 text-sm font-semibold text-[#8a94a6]">
+        {event.startDate === today ? timeLabel : formatMonthDay(event.startDate)}
+      </time>
+      <span className="truncate text-sm font-semibold text-[#283142]">{event.title}</span>
+    </Link>
+  );
+}
+
+function EmptyState({ title, description }: { title: string; description: string }) {
+  return (
+    <div className="grid min-h-64 place-items-center text-center">
+      <div>
+        <p className="text-base font-bold text-[#202838]">{title}</p>
+        <p className="mt-2 text-sm text-[#7a8494]">{description}</p>
+      </div>
+    </div>
+  );
+}
+
+type MonthCell = {
+  value: string;
+  isCurrentMonth: boolean;
+};
+
+function createMonthCells(monthValue: string): MonthCell[] {
+  const [year, month] = monthValue.split("-").map(Number);
+  const firstDay = new Date(year, month - 1, 1);
+  const lastDay = new Date(year, month, 0);
+  const gridStart = new Date(firstDay);
+  gridStart.setDate(firstDay.getDate() - firstDay.getDay());
+  const gridEnd = new Date(lastDay);
+  gridEnd.setDate(lastDay.getDate() + (6 - lastDay.getDay()));
+
+  const cells: MonthCell[] = [];
+  const cursor = new Date(gridStart);
+  while (cursor <= gridEnd) {
+    const value = toDateValue(cursor);
+    cells.push({
+      value,
+      isCurrentMonth: value.startsWith(monthValue),
+    });
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  return cells;
+}
+
+function eventsForDate(events: CalendarEventRow[], dateValue: string) {
+  return events.filter((event) => event.startDate <= dateValue && event.endDate >= dateValue);
 }
 
 function compareCalendarEvents(a: CalendarEventRow, b: CalendarEventRow) {
@@ -297,20 +269,18 @@ function compareCalendarEvents(a: CalendarEventRow, b: CalendarEventRow) {
   return a.startTime.localeCompare(b.startTime);
 }
 
-function formatEventSchedule(event: CalendarEventRow) {
-  const dateLabel = isMultiDay(event)
-    ? `${formatShortDate(event.startDate)} - ${formatShortDate(event.endDate)}`
-    : formatFullDate(event.startDate);
-
-  if (event.allDay) {
-    return `${dateLabel} · 종일`;
+function getNoticeBadge(notice: NoticeRow) {
+  if (notice.isPinned || notice.popupEnabled) {
+    return {
+      label: "긴급",
+      className: "border-[#ffccd4] bg-[#ff5c6c] text-white",
+    };
   }
 
-  return `${dateLabel} · ${event.startTime} - ${event.endTime}`;
-}
-
-function isMultiDay(event: CalendarEventRow) {
-  return event.startDate !== event.endDate;
+  return {
+    label: "공지",
+    className: "border-[#bcd4f9] bg-white text-[#2f70dc]",
+  };
 }
 
 function getKoreaDateValue() {
@@ -322,44 +292,39 @@ function getKoreaDateValue() {
   }).format(new Date());
 }
 
-function formatFullDate(value: string) {
-  return new Intl.DateTimeFormat("ko-KR", {
-    timeZone: "Asia/Seoul",
-    month: "long",
-    day: "numeric",
-    weekday: "short",
-  }).format(new Date(value));
+function toDateValue(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
 }
 
-function formatShortDate(value: string) {
+function formatMonthTitle(value: string) {
+  const [year, month] = value.split("-");
+
+  return `${year}년 ${Number(month)}월`;
+}
+
+function formatDotDate(value: string) {
+  return new Intl.DateTimeFormat("ko-KR", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  })
+    .format(new Date(value))
+    .replace(/\. /g, ".")
+    .replace(/\.$/, "");
+}
+
+function formatMonthDay(value: string) {
   return new Intl.DateTimeFormat("ko-KR", {
     timeZone: "Asia/Seoul",
     month: "2-digit",
     day: "2-digit",
-  }).format(new Date(value));
-}
-
-function formatMonth(value: string) {
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone: "Asia/Seoul",
-    month: "short",
-  }).format(new Date(value));
-}
-
-function formatDay(value: string) {
-  return new Intl.DateTimeFormat("ko-KR", {
-    timeZone: "Asia/Seoul",
-    day: "2-digit",
-  }).format(new Date(value));
-}
-
-function stripHtml(value: string) {
-  return value
-    .replace(/<[^>]*>/g, " ")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/\s+/g, " ")
-    .trim();
+  })
+    .format(new Date(value))
+    .replace(/\. /g, ".")
+    .replace(/\.$/, "");
 }

@@ -354,6 +354,12 @@
   background: #ffffff;
 }
 
+.erp-grid .ag-cell-inline-editing.work-diary-text-cell {
+  align-items: stretch;
+  padding-bottom: 0;
+  padding-top: 0;
+}
+
 .erp-grid .work-diary-row-modified {
   background: #fff8eb;
 }
@@ -378,7 +384,7 @@
 .erp-grid .work-diary-multiline-editor {
   width: 100%;
   height: 100%;
-  min-height: 100%;
+  min-height: 104px;
   resize: none;
   border: 0;
   background: transparent;
@@ -387,6 +393,7 @@
   font-size: 12px;
   line-height: 1.45;
   outline: none;
+  overflow-y: auto;
   padding: 7px 0;
   white-space: pre-wrap;
 }

@@ -1,6 +1,14 @@
 "use client";
 
-import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import {
+  type CSSProperties,
+  useCallback,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import { AgGridReact, type CustomCellEditorProps } from "ag-grid-react";
 import {
   AllCommunityModule,
@@ -13,6 +21,7 @@ import {
   type ICellRendererParams,
   type RowClassParams,
   type SelectionChangedEvent,
+  type SuppressKeyboardEventParams,
   type ValueFormatterParams,
 } from "ag-grid-community";
 import {
@@ -72,6 +81,7 @@ type WorkDiaryGridRow = WorkDiaryRow & {
 
 const EMPTY_DESTINATION = "__empty_destination__";
 const EMPTY_WORK_TYPE = "__empty_work_type__";
+const MULTILINE_EDITOR_ROW_HEIGHT = 104;
 const WORK_TYPE_COLORS = [
   { label: "회색", value: "#475569" },
   { label: "파랑", value: "#2563eb" },
@@ -224,6 +234,7 @@ export function WorkDiaryGrid({
         editable: (params) => !params.data?.isDeleted,
         cellClass: "erp-grid-cell work-diary-text-cell",
         cellEditor: MultilineTextCellEditor,
+        suppressKeyboardEvent: suppressMultilineEditorKeyboardEvent,
         wrapText: true,
         autoHeight: true,
       },
@@ -235,6 +246,7 @@ export function WorkDiaryGrid({
         editable: (params) => !params.data?.isDeleted,
         cellClass: "erp-grid-cell work-diary-text-cell",
         cellEditor: MultilineTextCellEditor,
+        suppressKeyboardEvent: suppressMultilineEditorKeyboardEvent,
         wrapText: true,
         autoHeight: true,
       },
@@ -261,6 +273,7 @@ export function WorkDiaryGrid({
         editable: (params) => !params.data?.isDeleted,
         cellClass: "erp-grid-cell work-diary-text-cell",
         cellEditor: MultilineTextCellEditor,
+        suppressKeyboardEvent: suppressMultilineEditorKeyboardEvent,
         wrapText: true,
         autoHeight: true,
       },
@@ -592,8 +605,7 @@ export function WorkDiaryGrid({
             onCellValueChanged={onCellValueChanged}
             onCellEditingStarted={(event: CellEditingStartedEvent<WorkDiaryGridRow>) => {
               if (isMultilineTextField(event.colDef.field)) {
-                event.node.setRowHeight(Math.max(event.node.rowHeight ?? 0, 104));
-                event.api.onRowHeightChanged();
+                maintainMultilineEditorRowHeight(event);
               }
             }}
             onCellEditingStopped={(event: CellEditingStoppedEvent<WorkDiaryGridRow>) => {
@@ -1198,27 +1210,12 @@ function MultilineTextCellEditor({
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const [textValue, setTextValue] = useState(String(value ?? ""));
 
-  function insertLineBreak(textarea: HTMLTextAreaElement) {
-    if (typeof textarea.selectionStart !== "number" || typeof textarea.selectionEnd !== "number") {
-      const nextValue = `${textarea.value}\n`;
-      setTextValue(nextValue);
-      onValueChange(nextValue);
-      return;
-    }
+  useLayoutEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
 
-    textarea.setRangeText("\n", textarea.selectionStart, textarea.selectionEnd, "end");
-    setTextValue(textarea.value);
-    onValueChange(textarea.value);
-  }
-
-  useEffect(() => {
-    window.requestAnimationFrame(() => {
-      const textarea = textareaRef.current;
-      if (!textarea) return;
-
-      textarea.focus();
-      textarea.setSelectionRange(textarea.value.length, textarea.value.length);
-    });
+    textarea.focus({ preventScroll: true });
+    textarea.setSelectionRange(textarea.value.length, textarea.value.length);
   }, []);
 
   return (
@@ -1231,16 +1228,6 @@ function MultilineTextCellEditor({
         setTextValue(event.target.value);
         onValueChange(event.target.value);
       }}
-      onBeforeInput={(event) => {
-        const inputEvent = event.nativeEvent as InputEvent;
-        if (!isCoarsePointerDevice() || !["insertLineBreak", "insertParagraph"].includes(inputEvent.inputType)) {
-          return;
-        }
-
-        event.preventDefault();
-        event.stopPropagation();
-        insertLineBreak(event.currentTarget);
-      }}
       onKeyDown={(event) => {
         if (event.key !== "Enter") {
           return;
@@ -1249,8 +1236,6 @@ function MultilineTextCellEditor({
         event.stopPropagation();
 
         if (isCoarsePointerDevice()) {
-          event.preventDefault();
-          insertLineBreak(event.currentTarget);
           return;
         }
 
@@ -1263,6 +1248,43 @@ function MultilineTextCellEditor({
       }}
     />
   );
+}
+
+function maintainMultilineEditorRowHeight(event: CellEditingStartedEvent<WorkDiaryGridRow>) {
+  const rowHeight = Math.max(event.node.rowHeight ?? 0, MULTILINE_EDITOR_ROW_HEIGHT);
+  const rowIndex = event.node.rowIndex;
+  const rowPinned = event.node.rowPinned;
+  const columnId = event.column.getColId();
+
+  const isStillEditing = () =>
+    event.api
+      .getEditingCells()
+      .some((cell) => cell.rowIndex === rowIndex && cell.rowPinned === rowPinned && cell.column.getColId() === columnId);
+
+  const applyRowHeight = () => {
+    event.node.setRowHeight(rowHeight);
+    event.api.onRowHeightChanged();
+  };
+
+  const keepRowHeightIfStillEditing = () => {
+    if (!isStillEditing()) {
+      return;
+    }
+
+    applyRowHeight();
+  };
+
+  applyRowHeight();
+  window.requestAnimationFrame(keepRowHeightIfStillEditing);
+  window.setTimeout(keepRowHeightIfStillEditing, 50);
+}
+
+function suppressMultilineEditorKeyboardEvent(params: SuppressKeyboardEventParams<WorkDiaryGridRow>) {
+  if (!params.editing || params.event.key !== "Enter") {
+    return false;
+  }
+
+  return params.event.target instanceof HTMLTextAreaElement;
 }
 
 function isMultilineTextField(field: string | undefined) {

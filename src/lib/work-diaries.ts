@@ -223,22 +223,16 @@ export async function saveWorkDiaryBulk({
       sortOrder: normalizeSortOrder(row.sortOrder),
       updatedAt: now,
     };
-    await db
-      .insert(workDiaryEntries)
-      .values(values)
-      .onConflictDoUpdate({
-        target: [workDiaryEntries.userId, workDiaryEntries.workDate],
-        set: {
-          workType: values.workType,
-          workTypeId: values.workTypeId,
-          primaryWork: values.primaryWork,
-          secondaryWork: values.secondaryWork,
-          destinationId: values.destinationId,
-          memo: values.memo,
-          sortOrder: values.sortOrder,
-          updatedAt: now,
-        },
-      });
+
+    const updatedRows = await db
+      .update(workDiaryEntries)
+      .set(values)
+      .where(and(eq(workDiaryEntries.userId, userId), eq(workDiaryEntries.workDate, workDate)))
+      .returning({ id: workDiaryEntries.id });
+
+    if (updatedRows.length === 0) {
+      await db.insert(workDiaryEntries).values(values);
+    }
   }
 
   for (const row of updated) {
