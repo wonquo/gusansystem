@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
+import { requireAppUser } from "@/lib/auth";
+import { listBoardPosts } from "@/lib/board";
 import { listCalendarEvents } from "@/lib/calendar";
-import { listNotices } from "@/lib/notices";
-import type { CalendarEventCategory, CalendarEventRow, NoticeRow } from "@/lib/types";
+import { listWorkDiaryRows } from "@/lib/work-diaries";
+import type { BoardPostRow, CalendarEventCategory, CalendarEventRow, WorkDiaryRow } from "@/lib/types";
 
 const DAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
 
@@ -16,9 +18,21 @@ const EVENT_COLORS: Record<CalendarEventCategory, string> = {
 };
 
 export default async function DashboardPage() {
-  const [notices, calendarEvents] = await Promise.all([listNotices(), listCalendarEvents()]);
+  const user = await requireAppUser();
   const today = getKoreaDateValue();
   const monthStart = today.slice(0, 7);
+  const workDiaryMonth = monthStart;
+  const [boardPosts, calendarEvents, workDiaryRows] = await Promise.all([
+    listBoardPosts(),
+    listCalendarEvents(),
+    listWorkDiaryRows({
+      currentUserId: user.id,
+      currentUserName: user.name,
+      role: user.role,
+      month: workDiaryMonth,
+      targetUserId: user.id,
+    }),
+  ]);
   const monthCells = createMonthCells(monthStart);
   const selectedEvents = calendarEvents
     .filter((event) => event.startDate <= today && event.endDate >= today)
@@ -27,16 +41,17 @@ export default async function DashboardPage() {
     .filter((event) => event.endDate >= today)
     .sort(compareCalendarEvents);
   const agendaEvents = selectedEvents.length > 0 ? selectedEvents : upcomingEvents.slice(0, 3);
-  const visibleNotices = notices.slice(0, 5);
+  const visibleNotices = boardPosts.filter((post) => post.category === "공지").slice(0, 5);
+  const workDiaryStats = getWorkDiaryStats(workDiaryRows, workDiaryMonth, today);
 
   return (
     <main className="min-h-[calc(100vh-6rem)] bg-[#f6f7f9] px-2 py-4 sm:px-4 lg:px-6">
-      <section className="mx-auto grid max-w-[1180px] gap-5 xl:grid-cols-2">
+      <section className="mx-auto grid max-w-[1480px] gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_360px]">
         <DashboardCard className="min-h-[510px]">
           <div className="flex items-center justify-between border-b border-[#eceff3] pb-5">
             <h1 className="text-xl font-bold tracking-normal text-[#171b26]">공지사항</h1>
             <Link
-              href="/notices"
+              href="/board"
               className="inline-flex items-center gap-1 text-sm font-semibold text-[#747d8c] transition hover:text-[#1f6fff]"
             >
               전체보기
@@ -49,8 +64,8 @@ export default async function DashboardPage() {
               visibleNotices.map((notice) => <NoticeListItem key={notice.id} notice={notice} />)
             ) : (
               <EmptyState
-                title="등록된 공지사항이 없습니다"
-                description="새 공지를 작성하면 이곳에 표시됩니다."
+                title="등록된 공지 게시글이 없습니다"
+                description="게시판에서 공지 카테고리 글을 작성하면 이곳에 표시됩니다."
               />
             )}
           </div>
@@ -62,7 +77,7 @@ export default async function DashboardPage() {
             <div className="flex items-center gap-5">
               <Link
                 href="/calendar"
-                className="rounded-md border border-[#e4e9f0] px-4 py-2 text-sm font-bold text-[#373f4f] shadow-sm transition hover:border-[#cbd5e1] hover:bg-[#f8fafc]"
+                className="whitespace-nowrap rounded-md border border-[#e4e9f0] px-4 py-2 text-sm font-bold text-[#373f4f] shadow-sm transition hover:border-[#cbd5e1] hover:bg-[#f8fafc]"
               >
                 오늘
               </Link>
@@ -128,6 +143,34 @@ export default async function DashboardPage() {
             ) : null}
           </div>
         </DashboardCard>
+
+        <DashboardCard className="min-h-[510px]">
+          <div className="flex items-center justify-between border-b border-[#eceff3] pb-5">
+            <h2 className="text-xl font-bold tracking-normal text-[#171b26]">업무일지</h2>
+            <Link
+              href="/work-diaries"
+              className="inline-flex items-center gap-1 text-sm font-semibold text-[#747d8c] transition hover:text-[#1f6fff]"
+            >
+              작성하기
+              <ChevronRight className="size-4" />
+            </Link>
+          </div>
+
+          <div className="flex min-h-[380px] flex-col items-center justify-center">
+            <DonutChart value={workDiaryStats.percent} />
+            <p className="mt-7 text-base font-bold text-[#202838]">
+              {formatMonthTitle(workDiaryMonth)} 작성률
+            </p>
+            <p className="mt-2 text-sm font-medium text-[#7a8494]">
+              업무일 {workDiaryStats.completedDays.toLocaleString("ko-KR")} /{" "}
+              {workDiaryStats.businessDays.toLocaleString("ko-KR")}일 작성
+            </p>
+            <div className="mt-7 grid w-full grid-cols-2 gap-3">
+              <WorkDiaryStat label="미작성" value={workDiaryStats.remainingDays} />
+              <WorkDiaryStat label="오늘" value={workDiaryStats.isTodayWritten ? "작성" : "미작성"} />
+            </div>
+          </div>
+        </DashboardCard>
       </section>
     </main>
   );
@@ -149,7 +192,7 @@ function DashboardCard({
   );
 }
 
-function NoticeListItem({ notice }: { notice: NoticeRow }) {
+function NoticeListItem({ notice }: { notice: BoardPostRow }) {
   const badge = getNoticeBadge(notice);
 
   return (
@@ -162,10 +205,38 @@ function NoticeListItem({ notice }: { notice: NoticeRow }) {
       <div className="min-w-0">
         <h3 className="truncate text-base font-semibold text-[#202838]">{notice.title}</h3>
       </div>
-      <time className="text-xs font-medium text-[#8a94a6]" dateTime={notice.createdAt}>
+      <time className="shrink-0 text-xs font-medium text-[#8a94a6]" dateTime={notice.createdAt}>
         {formatDotDate(notice.createdAt)}
       </time>
     </article>
+  );
+}
+
+function DonutChart({ value }: { value: number }) {
+  const clamped = Math.min(100, Math.max(0, value));
+  const background = `conic-gradient(#1f6fff ${clamped * 3.6}deg, #edf1f6 0deg)`;
+
+  return (
+    <div
+      className="grid size-44 place-items-center rounded-full shadow-[0_18px_35px_rgba(31,111,255,0.16)]"
+      style={{ background }}
+      aria-label={`업무일지 작성률 ${clamped}%`}
+    >
+      <div className="grid size-28 place-items-center rounded-full bg-white">
+        <span className="text-3xl font-bold tracking-normal text-[#1f6fff]">{clamped}%</span>
+      </div>
+    </div>
+  );
+}
+
+function WorkDiaryStat({ label, value }: { label: string; value: number | string }) {
+  return (
+    <div className="rounded-lg border border-[#edf0f4] bg-[#f8fafc] px-4 py-3 text-center">
+      <p className="text-xs font-semibold text-[#7a8494]">{label}</p>
+      <p className="mt-1 text-lg font-bold text-[#202838]">
+        {typeof value === "number" ? value.toLocaleString("ko-KR") : value}
+      </p>
+    </div>
   );
 }
 
@@ -269,8 +340,8 @@ function compareCalendarEvents(a: CalendarEventRow, b: CalendarEventRow) {
   return a.startTime.localeCompare(b.startTime);
 }
 
-function getNoticeBadge(notice: NoticeRow) {
-  if (notice.isPinned || notice.popupEnabled) {
+function getNoticeBadge(notice: BoardPostRow) {
+  if (notice.title.includes("긴급")) {
     return {
       label: "긴급",
       className: "border-[#ffccd4] bg-[#ff5c6c] text-white",
@@ -281,6 +352,53 @@ function getNoticeBadge(notice: NoticeRow) {
     label: "공지",
     className: "border-[#bcd4f9] bg-white text-[#2f70dc]",
   };
+}
+
+function getWorkDiaryStats(rows: WorkDiaryRow[], month: string, today: string) {
+  const businessDates = listBusinessDatesUntil(month, today);
+  const completedDates = new Set(
+    rows
+      .filter((row) => businessDates.includes(row.workDate) && isWorkDiaryWritten(row))
+      .map((row) => row.workDate),
+  );
+  const businessDays = businessDates.length;
+  const completedDays = completedDates.size;
+  const percent = businessDays === 0 ? 0 : Math.round((completedDays / businessDays) * 100);
+
+  return {
+    businessDays,
+    completedDays,
+    remainingDays: Math.max(0, businessDays - completedDays),
+    percent,
+    isTodayWritten: completedDates.has(today),
+  };
+}
+
+function listBusinessDatesUntil(month: string, today: string) {
+  return listDatesInMonth(month).filter((date) => date <= today && isBusinessDay(date));
+}
+
+function listDatesInMonth(month: string) {
+  const [year, monthNumber] = month.split("-").map(Number);
+  const days = new Date(year, monthNumber, 0).getDate();
+
+  return Array.from({ length: days }, (_, index) => `${month}-${String(index + 1).padStart(2, "0")}`);
+}
+
+function isBusinessDay(value: string) {
+  const day = new Date(`${value}T00:00:00+09:00`).getDay();
+  return day !== 0 && day !== 6;
+}
+
+function isWorkDiaryWritten(row: WorkDiaryRow) {
+  return Boolean(
+    !row.isPlaceholder &&
+      (row.primaryWork.trim() ||
+        row.secondaryWork.trim() ||
+        row.memo.trim() ||
+        row.destinationId ||
+        row.workTypeId),
+  );
 }
 
 function getKoreaDateValue() {
