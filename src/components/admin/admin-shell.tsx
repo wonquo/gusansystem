@@ -161,7 +161,7 @@ export function AdminShell({
             </div>
           </div>
         </header>
-        <main className="min-h-[calc(100vh-3.5rem-1px)] px-4 py-3 md:px-6">{children}</main>
+        <main className="min-h-[calc(100vh-3.5rem-1px)] px-2 py-3 md:px-3">{children}</main>
       </div>
       <DesktopViewToggle />
     </div>

@@ -1,9 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, useMemo, useState, useTransition } from "react";
 import {
   BellRing,
-  CalendarClock,
   MessageCircle,
   Pencil,
   Pin,
@@ -51,12 +51,9 @@ export function NoticeBoard({
   canManage: boolean;
 }) {
   const [notices, setNotices] = useState(initialNotices);
-  const [selected, setSelected] = useState<NoticeDetailRow | null>(null);
-  const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<NoticeFormState>(emptyForm);
-  const [comment, setComment] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -84,23 +81,6 @@ export function NoticeBoard({
     });
     setError(null);
     setIsEditorOpen(true);
-  }
-
-  function openDetail(notice: NoticeRow) {
-    setError(null);
-    startTransition(async () => {
-      const response = await fetch(`/api/notices/${notice.id}`);
-      const data = await response.json();
-
-      if (!response.ok) {
-        setError(data.error ?? "공지사항을 불러오지 못했습니다.");
-        return;
-      }
-
-      setSelected(data.notice);
-      setComment("");
-      setIsDetailOpen(true);
-    });
   }
 
   function saveNotice(event: FormEvent<HTMLFormElement>) {
@@ -131,9 +111,6 @@ export function NoticeBoard({
       setNotices((current) =>
         sortNotices(editingId ? current.map((item) => (item.id === saved.id ? saved : item)) : [saved, ...current]),
       );
-      if (selected?.id === saved.id) {
-        setSelected(data.notice);
-      }
       setIsEditorOpen(false);
     });
   }
@@ -154,48 +131,6 @@ export function NoticeBoard({
       }
 
       setNotices((current) => current.filter((item) => item.id !== notice.id));
-      if (selected?.id === notice.id) {
-        setSelected(null);
-        setIsDetailOpen(false);
-      }
-    });
-  }
-
-  function submitComment(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!selected) {
-      return;
-    }
-
-    setError(null);
-    startTransition(async () => {
-      const response = await fetch(`/api/notices/${selected.id}/comments`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: comment }),
-      });
-      const data = await response.json();
-
-      if (!response.ok) {
-        setError(data.error ?? "댓글을 저장하지 못했습니다.");
-        return;
-      }
-
-      setSelected((current) =>
-        current
-          ? {
-              ...current,
-              comments: [data.comment, ...current.comments],
-              commentCount: current.commentCount + 1,
-            }
-          : current,
-      );
-      setNotices((current) =>
-        current.map((item) =>
-          item.id === selected.id ? { ...item, commentCount: item.commentCount + 1 } : item,
-        ),
-      );
-      setComment("");
     });
   }
 
@@ -240,10 +175,9 @@ export function NoticeBoard({
                 key={notice.id}
                 className="grid gap-3 px-4 py-4 transition-colors hover:bg-[#f8fbff] md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:px-5"
               >
-                <button
-                  type="button"
-                  onClick={() => openDetail(notice)}
-                  className="min-w-0 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1f6fff]"
+                <Link
+                  href={`/notices/${notice.id}`}
+                  className="min-w-0 rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1f6fff]"
                 >
                   <div className="flex flex-wrap items-center gap-2">
                     {notice.isPinned ? (
@@ -264,7 +198,7 @@ export function NoticeBoard({
                   </div>
                   <h2 className="mt-2 truncate text-base font-bold text-[#0d1b3d]">{notice.title}</h2>
                   <p className="mt-1 line-clamp-2 text-sm leading-6 text-[#526079]">{notice.content}</p>
-                </button>
+                </Link>
                 <div className="flex items-center justify-between gap-2 md:justify-end">
                   <span className="inline-flex items-center gap-1 text-sm font-semibold text-[#526079]">
                     <MessageCircle className="size-4" />
@@ -379,75 +313,6 @@ export function NoticeBoard({
           </form>
         </DialogContent>
       </Dialog>
-
-      <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-        <DialogContent className="max-h-[86vh] overflow-y-auto sm:max-w-3xl">
-          {selected ? (
-            <div className="space-y-5">
-              <DialogHeader>
-                <div className="flex flex-wrap items-center gap-2">
-                  {selected.isPinned ? <Badge className="rounded bg-[#1f6fff] text-white">고정</Badge> : null}
-                  {selected.popupEnabled ? (
-                    <Badge variant="outline" className="rounded border-[#f6c453] bg-[#fffbeb] text-[#9a6a00]">
-                      팝업
-                    </Badge>
-                  ) : null}
-                  <span className="text-xs font-medium text-[#7a869b]">
-                    {selected.authorName ?? "알 수 없음"} · {formatDate(selected.createdAt)}
-                  </span>
-                </div>
-                <DialogTitle className="text-xl leading-7">{selected.title}</DialogTitle>
-                {selected.popupEnabled ? (
-                  <DialogDescription className="inline-flex items-center gap-1">
-                    <CalendarClock className="size-3.5" />
-                    {formatPopupRange(selected.popupStartsAt, selected.popupEndsAt)}
-                  </DialogDescription>
-                ) : null}
-              </DialogHeader>
-              <div className="whitespace-pre-wrap rounded-lg border border-[#dbe4ef] bg-[#f8fbff] p-4 text-sm leading-7 text-[#22304f]">
-                {selected.content}
-              </div>
-
-              <section className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-bold text-[#0d1b3d]">댓글 {selected.commentCount.toLocaleString()}</h3>
-                </div>
-                <form onSubmit={submitComment} className="grid gap-2">
-                  <Textarea
-                    className="min-h-20"
-                    value={comment}
-                    onChange={(event) => setComment(event.target.value)}
-                    placeholder="댓글을 입력하세요"
-                    required
-                  />
-                  <div className="flex justify-end">
-                    <Button type="submit" disabled={isPending || comment.trim().length === 0}>
-                      댓글 등록
-                    </Button>
-                  </div>
-                </form>
-                <div className="space-y-2">
-                  {selected.comments.length === 0 ? (
-                    <div className="rounded-md border border-dashed border-[#dbe4ef] px-4 py-6 text-center text-sm text-[#66748a]">
-                      아직 댓글이 없습니다.
-                    </div>
-                  ) : (
-                    selected.comments.map((item) => (
-                      <div key={item.id} className="rounded-md border border-[#edf2f7] bg-white px-4 py-3">
-                        <div className="flex flex-wrap items-center gap-2 text-xs text-[#7a869b]">
-                          <span className="font-bold text-[#22304f]">{item.authorName ?? "알 수 없음"}</span>
-                          <span>{formatDate(item.createdAt)}</span>
-                        </div>
-                        <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[#22304f]">{item.content}</p>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </section>
-            </div>
-          ) : null}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
@@ -496,12 +361,4 @@ function formatDate(value: string) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(value));
-}
-
-function formatPopupRange(startsAt: string | null, endsAt: string | null) {
-  if (!startsAt && !endsAt) {
-    return "기간 제한 없음";
-  }
-
-  return `${startsAt ? formatDate(startsAt) : "즉시"} - ${endsAt ? formatDate(endsAt) : "종료일 없음"}`;
 }

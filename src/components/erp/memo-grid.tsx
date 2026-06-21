@@ -34,7 +34,6 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -97,14 +96,14 @@ export function MemoGrid({
       },
       {
         field: "title",
-        headerName: "메모 제목",
+        headerName: "제목",
         flex: 1.3,
         minWidth: 260,
-        cellClass: "erp-grid-cell font-semibold",
+        cellClass: "erp-grid-cell text-sm font-semibold",
       },
       {
         field: "content",
-        headerName: "메모 내용",
+        headerName: "내용",
         flex: 1.8,
         minWidth: 360,
         cellClass: "erp-grid-cell text-[#475569]",
@@ -463,18 +462,20 @@ function MemoDialog({
         <div className="min-h-0 overflow-y-auto p-4">
           <div className="grid gap-4">
             <div className="grid gap-1.5">
-              <Label htmlFor="memo-title">메모제목</Label>
+              <Label htmlFor="memo-title" className="text-xs">
+                제목
+              </Label>
               <Input
                 id="memo-title"
                 value={draft.title}
                 onChange={(event) => onDraftChange({ ...draft, title: event.target.value })}
-                placeholder="메모 제목"
-                className="h-9 border-[#d8e0ea] bg-white"
+                placeholder="제목"
+                className="h-8 border-[#d8e0ea] bg-white text-sm"
               />
             </div>
 
             <div className="grid gap-1.5">
-              <Label>메모내용</Label>
+              <Label className="text-xs">내용</Label>
               <div className="overflow-hidden rounded-lg border border-[#d8e0ea] bg-white">
                 <div className="flex flex-wrap items-center gap-1 border-b border-[#e2e8f0] bg-[#f8fafc] p-1.5">
                   <ToolbarButton label="굵게" onClick={() => runCommand("bold")}>
@@ -564,21 +565,27 @@ function MemoDialog({
           </div>
         </div>
 
-        <DialogFooter className="rounded-none">
-          {draft.id && canDelete ? (
-            <Button type="button" variant="destructive" size="sm" onClick={onDelete} disabled={isPending}>
-              <Trash2 className="size-3.5" />
-              삭제
-            </Button>
-          ) : null}
-          <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)}>
-            닫기
-          </Button>
-          <Button type="button" size="sm" onClick={onSave} disabled={isPending || !canSave || !draft.title.trim()}>
-            {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
-            저장
-          </Button>
-        </DialogFooter>
+        <div className="shrink-0 border-t border-[#d8e0ea] bg-white px-4 pt-3 pb-5">
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              {draft.id && canDelete ? (
+                <Button type="button" variant="destructive" size="sm" onClick={onDelete} disabled={isPending}>
+                  <Trash2 className="size-3.5" />
+                  삭제
+                </Button>
+              ) : null}
+            </div>
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)}>
+                닫기
+              </Button>
+              <Button type="button" size="sm" onClick={onSave} disabled={isPending || !canSave || !draft.title.trim()}>
+                {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
+                저장
+              </Button>
+            </div>
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
   );

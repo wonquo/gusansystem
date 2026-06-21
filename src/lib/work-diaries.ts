@@ -28,6 +28,13 @@ export type WorkDiaryBulkInput = {
   deleted?: string[];
 };
 
+const WORK_DIARY_TYPE_CODE_PREFIX = "TYPE";
+const WORK_DIARY_TYPE_CODE_PAD_LENGTH = 3;
+const WORK_DIARY_TYPE_CODE_INSERT_ATTEMPTS = 20;
+const WORK_DIARY_DESTINATION_CODE_PREFIX = "DEST";
+const WORK_DIARY_DESTINATION_CODE_PAD_LENGTH = 3;
+const WORK_DIARY_DESTINATION_CODE_INSERT_ATTEMPTS = 20;
+
 export function currentMonthText() {
   const now = new Date();
   const year = now.getFullYear();
@@ -308,16 +315,33 @@ export async function saveWorkDiaryBulk({
   return { ok: true };
 }
 
-export async function createWorkDiaryDestination(input: { code: string; label: string }) {
-  const code = normalizeOptionCode(input.code || input.label, "행선지");
+export async function createWorkDiaryDestination(input: { code?: string; label: string }) {
   const label = normalizeRequiredText(input.label, "행선지명을 입력해 주세요.");
 
-  const [row] = await getDb()
-    .insert(workDiaryDestinations)
-    .values({ code, label })
-    .returning();
+  if (input.code?.trim()) {
+    const code = normalizeOptionCode(input.code, "행선지");
+    const [row] = await getDb()
+      .insert(workDiaryDestinations)
+      .values({ code, label })
+      .returning();
 
-  return serializeDestination(row, 0);
+    return serializeDestination(row, 0);
+  }
+
+  for (let attempt = 0; attempt < WORK_DIARY_DESTINATION_CODE_INSERT_ATTEMPTS; attempt += 1) {
+    const code = await generateNextWorkDiaryDestinationCode(attempt);
+    const [row] = await getDb()
+      .insert(workDiaryDestinations)
+      .values({ code, label })
+      .onConflictDoNothing({ target: workDiaryDestinations.code })
+      .returning();
+
+    if (row) {
+      return serializeDestination(row, 0);
+    }
+  }
+
+  throw new Error("행선지 코드를 자동채번하지 못했습니다. 다시 시도해 주세요.");
 }
 
 export async function updateWorkDiaryDestination(
@@ -363,16 +387,34 @@ export async function deleteWorkDiaryDestination(id: string) {
   return { deleted: true, id };
 }
 
-export async function createWorkDiaryType(input: { code: string; label: string; color?: string }) {
-  const code = normalizeOptionCode(input.code || input.label, "업무구분");
+export async function createWorkDiaryType(input: { code?: string; label: string; color?: string }) {
   const label = normalizeRequiredText(input.label, "업무구분명을 입력해 주세요.");
+  const color = normalizeColor(input.color);
 
-  const [row] = await getDb()
-    .insert(workDiaryTypes)
-    .values({ code, label, color: normalizeColor(input.color) })
-    .returning();
+  if (input.code?.trim()) {
+    const code = normalizeOptionCode(input.code, "업무구분");
+    const [row] = await getDb()
+      .insert(workDiaryTypes)
+      .values({ code, label, color })
+      .returning();
 
-  return serializeWorkType(row, 0);
+    return serializeWorkType(row, 0);
+  }
+
+  for (let attempt = 0; attempt < WORK_DIARY_TYPE_CODE_INSERT_ATTEMPTS; attempt += 1) {
+    const code = await generateNextWorkDiaryTypeCode(attempt);
+    const [row] = await getDb()
+      .insert(workDiaryTypes)
+      .values({ code, label, color })
+      .onConflictDoNothing({ target: workDiaryTypes.code })
+      .returning();
+
+    if (row) {
+      return serializeWorkType(row, 0);
+    }
+  }
+
+  throw new Error("업무구분 코드를 자동채번하지 못했습니다. 다시 시도해 주세요.");
 }
 
 export async function updateWorkDiaryType(
@@ -538,6 +580,34 @@ function normalizeOptionCode(value: unknown, label: string) {
     throw new Error(`${label} 코드는 영문, 숫자, _, - 조합 40자 이하로 입력해 주세요.`);
   }
   return code;
+}
+
+async function generateNextWorkDiaryTypeCode(offset: number) {
+  const rows = await getDb()
+    .select({ code: workDiaryTypes.code })
+    .from(workDiaryTypes)
+    .where(sql`${workDiaryTypes.code} like ${`${WORK_DIARY_TYPE_CODE_PREFIX}_%`}`);
+  const codePattern = new RegExp(`^${WORK_DIARY_TYPE_CODE_PREFIX}_(\\d+)$`);
+  const maxNumber = rows.reduce((max, row) => {
+    const match = codePattern.exec(row.code);
+    return match ? Math.max(max, Number(match[1])) : max;
+  }, 0);
+
+  return `${WORK_DIARY_TYPE_CODE_PREFIX}_${String(maxNumber + 1 + offset).padStart(WORK_DIARY_TYPE_CODE_PAD_LENGTH, "0")}`;
+}
+
+async function generateNextWorkDiaryDestinationCode(offset: number) {
+  const rows = await getDb()
+    .select({ code: workDiaryDestinations.code })
+    .from(workDiaryDestinations)
+    .where(sql`${workDiaryDestinations.code} like ${`${WORK_DIARY_DESTINATION_CODE_PREFIX}_%`}`);
+  const codePattern = new RegExp(`^${WORK_DIARY_DESTINATION_CODE_PREFIX}_(\\d+)$`);
+  const maxNumber = rows.reduce((max, row) => {
+    const match = codePattern.exec(row.code);
+    return match ? Math.max(max, Number(match[1])) : max;
+  }, 0);
+
+  return `${WORK_DIARY_DESTINATION_CODE_PREFIX}_${String(maxNumber + 1 + offset).padStart(WORK_DIARY_DESTINATION_CODE_PAD_LENGTH, "0")}`;
 }
 
 function normalizeNullableId(value: unknown) {

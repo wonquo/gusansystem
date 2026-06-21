@@ -121,9 +121,13 @@ export function NoticePopup() {
                 {current.authorName ?? "관리자"} · {formatDate(current.createdAt)}
               </DialogDescription>
             </DialogHeader>
-            <div className="max-h-[42vh] overflow-y-auto whitespace-pre-wrap rounded-lg border border-[#dbe4ef] bg-[#f8fbff] p-4 text-sm leading-7 text-[#22304f]">
+            <Link
+              href={`/notices/${current.id}`}
+              onClick={() => setIsOpen(false)}
+              className="block max-h-[42vh] overflow-y-auto whitespace-pre-wrap rounded-lg border border-[#dbe4ef] bg-[#f8fbff] p-4 text-sm leading-7 text-[#22304f] transition hover:border-[#9dbcf0] hover:bg-[#f3f8ff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1f6fff]"
+            >
               {current.content}
-            </div>
+            </Link>
             <DialogFooter className="items-center sm:justify-between">
               <div className="flex items-center gap-1">
                 {hasMultiple ? (
@@ -165,8 +169,8 @@ export function NoticePopup() {
                   모두 닫기
                 </Button>
                 <Button asChild className="bg-[#1f6fff] text-white hover:bg-[#195ed8]">
-                  <Link href="/notices" onClick={() => setIsOpen(false)}>
-                    공지사항 보기
+                  <Link href={`/notices/${current.id}`} onClick={() => setIsOpen(false)}>
+                    공지 조회
                   </Link>
                 </Button>
               </div>

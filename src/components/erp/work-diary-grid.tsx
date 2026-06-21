@@ -1,23 +1,27 @@
 "use client";
 
 import {
+  type ClipboardEvent as ReactClipboardEvent,
   type CSSProperties,
+  type KeyboardEvent as ReactKeyboardEvent,
   useCallback,
+  useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
   useState,
   useTransition,
 } from "react";
-import { AgGridReact, type CustomCellEditorProps } from "ag-grid-react";
+import { AgGridReact, type CustomCellEditorProps, useGridCellEditor } from "ag-grid-react";
 import {
   AllCommunityModule,
   ModuleRegistry,
-  type CellEditingStartedEvent,
   type CellEditingStoppedEvent,
   type CellValueChangedEvent,
   type ColDef,
+  type Column,
   type GetRowIdParams,
+  type GridApi,
   type ICellRendererParams,
   type RowClassParams,
   type SelectionChangedEvent,
@@ -79,9 +83,26 @@ type WorkDiaryGridRow = WorkDiaryRow & {
   isDeleted: boolean;
 };
 
+type EditableField = "workTypeId" | "primaryWork" | "secondaryWork" | "destinationId" | "memo";
+
 const EMPTY_DESTINATION = "__empty_destination__";
 const EMPTY_WORK_TYPE = "__empty_work_type__";
-const MULTILINE_EDITOR_ROW_HEIGHT = 104;
+const INLINE_TEXT_EDITOR_MIN_ROW_HEIGHT = 36;
+const INLINE_TEXT_EDITOR_ROW_PADDING = 14;
+const TEXTAREA_OWNED_KEYS = new Set([
+  "ArrowDown",
+  "ArrowLeft",
+  "ArrowRight",
+  "ArrowUp",
+  "Backspace",
+  "Delete",
+  "End",
+  "Enter",
+  "Escape",
+  "Home",
+  "PageDown",
+  "PageUp",
+]);
 const WORK_TYPE_COLORS = [
   { label: "회색", value: "#475569" },
   { label: "파랑", value: "#2563eb" },
@@ -130,10 +151,14 @@ export function WorkDiaryGrid({
   currentUser: AppUserRow;
   initialMonth: string;
 }) {
+  const todayText = useMemo(() => formatDateInputValue(new Date()), []);
   const [rows, setRows] = useState(() => toGridRows(initialRows, initialWorkTypes));
+  const rowsRef = useRef(rows);
+  const gridApiRef = useRef<GridApi<WorkDiaryGridRow> | null>(null);
+  const shouldSelectPreferredRowRef = useRef(false);
   const [destinations, setDestinations] = useState(initialDestinations);
   const [workTypes, setWorkTypes] = useState(initialWorkTypes);
-  const [selectedRow, setSelectedRow] = useState<WorkDiaryGridRow | null>(rows[0] ?? null);
+  const [selectedRow, setSelectedRow] = useState<WorkDiaryGridRow | null>(() => findPreferredRow(rows, todayText));
   const [month, setMonth] = useState(initialMonth);
   const [selectedUserId, setSelectedUserId] = useState(currentUser.id);
   const [error, setError] = useState<string | null>(null);
@@ -142,12 +167,22 @@ export function WorkDiaryGrid({
   const [isWorkTypeDialogOpen, setIsWorkTypeDialogOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const isAdmin = currentUser.role === "admin";
-  const todayText = useMemo(() => formatDateInputValue(new Date()), []);
   const defaultWorkType = useMemo(
     () => workTypes.find((item) => item.code === "WORK" && item.isActive) ?? workTypes.find((item) => item.isActive) ?? null,
     [workTypes],
   );
   const defaultWorkTypeId = defaultWorkType?.id ?? null;
+
+  useEffect(() => {
+    rowsRef.current = rows;
+  }, [rows]);
+
+  useLayoutEffect(() => {
+    if (!shouldSelectPreferredRowRef.current) return;
+
+    shouldSelectPreferredRowRef.current = false;
+    selectPreferredRow(gridApiRef.current, rows, todayText);
+  }, [rows, todayText]);
 
   const destinationNameById = useMemo(() => {
     const map = new Map<string, string>();
@@ -233,8 +268,8 @@ export function WorkDiaryGrid({
         minWidth: 260,
         editable: (params) => !params.data?.isDeleted,
         cellClass: "erp-grid-cell work-diary-text-cell",
-        cellEditor: MultilineTextCellEditor,
-        suppressKeyboardEvent: suppressMultilineEditorKeyboardEvent,
+        cellEditor: InlineTextCellEditor,
+        suppressKeyboardEvent: suppressInlineTextEditorKeyboardEvent,
         wrapText: true,
         autoHeight: true,
       },
@@ -245,8 +280,8 @@ export function WorkDiaryGrid({
         minWidth: 240,
         editable: (params) => !params.data?.isDeleted,
         cellClass: "erp-grid-cell work-diary-text-cell",
-        cellEditor: MultilineTextCellEditor,
-        suppressKeyboardEvent: suppressMultilineEditorKeyboardEvent,
+        cellEditor: InlineTextCellEditor,
+        suppressKeyboardEvent: suppressInlineTextEditorKeyboardEvent,
         wrapText: true,
         autoHeight: true,
       },
@@ -272,8 +307,8 @@ export function WorkDiaryGrid({
         minWidth: 180,
         editable: (params) => !params.data?.isDeleted,
         cellClass: "erp-grid-cell work-diary-text-cell",
-        cellEditor: MultilineTextCellEditor,
-        suppressKeyboardEvent: suppressMultilineEditorKeyboardEvent,
+        cellEditor: InlineTextCellEditor,
+        suppressKeyboardEvent: suppressInlineTextEditorKeyboardEvent,
         wrapText: true,
         autoHeight: true,
       },
@@ -301,15 +336,16 @@ export function WorkDiaryGrid({
             throw new Error(body.error ?? "업무일지 조회에 실패했습니다.");
           }
           const nextRows = toGridRows(body.rows ?? [], workTypes);
+          shouldSelectPreferredRowRef.current = true;
           setRows(nextRows);
-          setSelectedRow(nextRows[0] ?? null);
+          setSelectedRow(findPreferredRow(nextRows, todayText));
           setNotice(null);
         } catch (fetchError) {
           setError(fetchError instanceof Error ? fetchError.message : "업무일지 조회에 실패했습니다.");
         }
       });
     },
-    [isAdmin, month, selectedUserId, workTypes],
+    [isAdmin, month, selectedUserId, todayText, workTypes],
   );
 
   const reloadDestinations = useCallback(() => {
@@ -372,21 +408,94 @@ export function WorkDiaryGrid({
     });
   }, [defaultWorkTypeId, month, reloadRows, selectedUserId]);
 
+  const persistPastedRows = useCallback((previousRows: WorkDiaryGridRow[], nextRows: WorkDiaryGridRow[]) => {
+    const changedRows = nextRows.filter((nextRow) => {
+      const previousRow = previousRows.find((row) => row.clientId === nextRow.clientId);
+      return previousRow && hasPersistedCellChange(previousRow, nextRow);
+    });
+    const created = changedRows
+      .filter((row) => (row.isPlaceholder || row.rowState === "new") && rowHasContent(row, defaultWorkTypeId))
+      .map(toSavePayload);
+    const updated = changedRows
+      .filter((row) => !row.isPlaceholder && row.rowState !== "new")
+      .map(toSavePayload);
+
+    if (created.length === 0 && updated.length === 0) {
+      return;
+    }
+
+    startTransition(async () => {
+      try {
+        setError(null);
+        const response = await fetch("/api/work-diaries", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ created, updated }),
+        });
+        const body = await response.json();
+        if (!response.ok) {
+          throw new Error(body.error ?? "업무일지 저장에 실패했습니다.");
+        }
+        setNotice(null);
+        reloadRows(month, selectedUserId);
+      } catch (saveError) {
+        setRows(previousRows);
+        rowsRef.current = previousRows;
+        setSelectedRow(previousRows[0] ?? null);
+        setError(saveError instanceof Error ? saveError.message : "업무일지 저장에 실패했습니다.");
+      }
+    });
+  }, [defaultWorkTypeId, month, reloadRows, selectedUserId]);
+
+  const saveGridRows = useCallback((rowsToSave: WorkDiaryGridRow[]) => {
+    const savableRows = rowsToSave.filter((row) => !row.isDeleted);
+    const created = savableRows
+      .filter((row) => (row.isPlaceholder || row.rowState === "new") && rowHasContent(row, defaultWorkTypeId))
+      .map(toSavePayload);
+    const updated = savableRows
+      .filter((row) => !row.isPlaceholder && row.rowState !== "new")
+      .map(toSavePayload);
+
+    if (created.length === 0 && updated.length === 0) {
+      setNotice("저장할 업무일지가 없습니다.");
+      return;
+    }
+
+    startTransition(async () => {
+      try {
+        setError(null);
+        const response = await fetch("/api/work-diaries", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ created, updated }),
+        });
+        const body = await response.json();
+        if (!response.ok) {
+          throw new Error(body.error ?? "업무일지 저장에 실패했습니다.");
+        }
+        setNotice("업무일지를 저장했습니다.");
+        reloadRows(month, selectedUserId);
+      } catch (saveError) {
+        setError(saveError instanceof Error ? saveError.message : "업무일지 저장에 실패했습니다.");
+      }
+    });
+  }, [defaultWorkTypeId, month, reloadRows, selectedUserId]);
+
   function onCellValueChanged(event: CellValueChangedEvent<WorkDiaryGridRow>) {
     const row = event.data;
     const field = event.colDef.field;
-    if (!row || !field || event.oldValue === event.newValue) {
+    if (!row || !isEditableField(field)) {
       return;
     }
+    const previousValue = normalizeCellValue(field, event.oldValue);
     const nextValue = normalizeCellValue(field, event.newValue);
-    const nextRow: WorkDiaryGridRow = {
-      ...row,
-      [field]: nextValue,
-      rowState: row.isPlaceholder || row.rowState === "new" ? "new" : "modified",
-      isPlaceholder: row.isPlaceholder && rowHasContent({ ...row, [field]: nextValue }, defaultWorkTypeId)
-        ? false
-        : row.isPlaceholder,
-    };
+    if ((previousValue ?? null) === (nextValue ?? null)) return;
+
+    const nextRow = applyEditedCellValue(row, field, nextValue, {
+      defaultWorkTypeId,
+      destinations,
+      workTypes,
+    });
     setRows((current) =>
       current.map((item) =>
         item.clientId === row.clientId ? { ...item, ...nextRow } : item,
@@ -394,6 +503,120 @@ export function WorkDiaryGrid({
     );
     setSelectedRow(nextRow);
     persistRow(nextRow);
+  }
+
+  function onGridKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
+    const api = gridApiRef.current;
+    if (api && isSaveShortcut(event)) {
+      event.preventDefault();
+      event.stopPropagation();
+      api.stopEditing();
+      window.requestAnimationFrame(() => saveGridRows(collectGridRows(api)));
+      return;
+    }
+
+    if (!api || isFormEditingTarget(event.target)) return;
+    if (api.getEditingCells().length > 0) return;
+
+    const focusedCell = api.getFocusedCell();
+    if (!focusedCell) return;
+    const rowNode = api.getDisplayedRowAtIndex(focusedCell.rowIndex);
+    const row = rowNode?.data;
+    if (!row || row.isDeleted) return;
+
+    const field = focusedCell.column.getColDef().field;
+    if (!isEditableField(field)) return;
+
+    if (event.key === "Backspace" || event.key === "Delete") {
+      event.preventDefault();
+      const nextValue = normalizeCellValue(field, "");
+      const nextRow = applyEditedCellValue(row, field, nextValue, {
+        defaultWorkTypeId,
+        destinations,
+        workTypes,
+      });
+      setRows((current) => current.map((item) => (item.clientId === row.clientId ? nextRow : item)));
+      setSelectedRow(nextRow);
+      persistRow(nextRow);
+      return;
+    }
+
+    if (event.key === "Enter" || event.key === "F2" || isPrintableEditorStartKey(event.key)) {
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      event.preventDefault();
+      api.startEditingCell({
+        rowIndex: focusedCell.rowIndex,
+        colKey: focusedCell.column,
+        rowPinned: focusedCell.rowPinned,
+        key: event.key,
+      });
+    }
+  }
+
+  function onGridPaste(event: ReactClipboardEvent<HTMLDivElement>) {
+    const api = gridApiRef.current;
+    if (!api || isFormEditingTarget(event.target)) return;
+    const text = event.clipboardData.getData("text/plain");
+    if (!text.trim()) return;
+
+    const focusedCell = api.getFocusedCell();
+    if (!focusedCell) return;
+    const pastedRows = parseClipboardRows(text);
+    if (pastedRows.length === 0) return;
+
+    const startColumnIndex = api
+      .getAllDisplayedColumns()
+      .findIndex((column) => column.getColId() === focusedCell.column.getColId());
+    const editableColumns = getEditableColumnsFrom(api, startColumnIndex);
+    if (editableColumns.length === 0) return;
+
+    event.preventDefault();
+    api.stopEditing();
+
+    const previousRows = rowsRef.current;
+    let didChange = false;
+    const nextRows = previousRows.map((row, rowIndex) => {
+      const pasteRow = pastedRows[rowIndex - focusedCell.rowIndex];
+      if (!pasteRow || row.isDeleted) return row;
+
+      let nextRow = row;
+      pasteRow.forEach((cellText, columnOffset) => {
+        const field = editableColumns[columnOffset];
+        if (!field) return;
+        const nextValue = normalizePastedCellValue(field, cellText, destinations, workTypes);
+        const currentValue = normalizeCellValue(field, nextRow[field]);
+        if ((currentValue ?? null) === (nextValue ?? null)) return;
+
+        nextRow = applyEditedCellValue(nextRow, field, nextValue, {
+          defaultWorkTypeId,
+          destinations,
+          workTypes,
+        });
+        didChange = true;
+      });
+      return nextRow;
+    });
+
+    if (!didChange) return;
+
+    setRows(nextRows);
+    rowsRef.current = nextRows;
+    setSelectedRow(nextRows[focusedCell.rowIndex] ?? null);
+    persistPastedRows(previousRows, nextRows);
+  }
+
+  function onGridCopy(event: ReactClipboardEvent<HTMLDivElement>) {
+    const api = gridApiRef.current;
+    if (!api || isFormEditingTarget(event.target)) return;
+
+    const focusedCell = api.getFocusedCell();
+    if (!focusedCell) return;
+    const row = api.getDisplayedRowAtIndex(focusedCell.rowIndex)?.data;
+    const field = focusedCell.column.getColDef().field;
+    if (!row || !field) return;
+
+    event.preventDefault();
+    event.clipboardData.setData("text/plain", getClipboardCellText(row, field, destinationNameById, workTypeNameById));
   }
 
   function onSelectionChanged(event: SelectionChangedEvent<WorkDiaryGridRow>) {
@@ -579,7 +802,12 @@ export function WorkDiaryGrid({
             <span className="block h-full w-1/3 animate-pulse bg-[#2f70dc]" />
           </div>
         ) : null}
-        <div className="ag-theme-quartz erp-grid work-diary-grid h-full w-full">
+        <div
+          className="ag-theme-quartz erp-grid work-diary-grid h-full w-full"
+          onCopy={onGridCopy}
+          onKeyDownCapture={onGridKeyDown}
+          onPaste={onGridPaste}
+        >
           <AgGridReact
             rowData={rows}
             columnDefs={columnDefs}
@@ -593,23 +821,26 @@ export function WorkDiaryGrid({
               suppressHeaderMenuButton: true,
               cellClass: "erp-grid-cell",
             }}
-            singleClickEdit
+            singleClickEdit={false}
             rowSelection="single"
             animateRows={false}
             theme="legacy"
             suppressDragLeaveHidesColumns
+            enterNavigatesVertically
+            enterNavigatesVerticallyAfterEdit
             stopEditingWhenCellsLoseFocus
+            undoRedoCellEditing
+            undoRedoCellEditingLimit={50}
             onGridReady={(event) => {
-              event.api.getDisplayedRowAtIndex(0)?.setSelected(true);
+              gridApiRef.current = event.api;
+              selectPreferredRow(event.api, rows, todayText);
+            }}
+            onGridPreDestroyed={() => {
+              gridApiRef.current = null;
             }}
             onCellValueChanged={onCellValueChanged}
-            onCellEditingStarted={(event: CellEditingStartedEvent<WorkDiaryGridRow>) => {
-              if (isMultilineTextField(event.colDef.field)) {
-                maintainMultilineEditorRowHeight(event);
-              }
-            }}
             onCellEditingStopped={(event: CellEditingStoppedEvent<WorkDiaryGridRow>) => {
-              if (isMultilineTextField(event.colDef.field)) {
+              if (isInlineTextField(event.colDef.field)) {
                 event.node.setRowHeight(undefined);
                 event.api.onRowHeightChanged();
               }
@@ -620,7 +851,6 @@ export function WorkDiaryGrid({
               if (params.data?.workDate === todayText) classes.push("work-diary-row-today");
               if (params.data?.isDeleted) classes.push("work-diary-row-deleted");
               else if (params.data?.rowState === "new") classes.push("work-diary-row-new");
-              else if (params.data?.rowState === "modified") classes.push("work-diary-row-modified");
               return classes.length ? classes.join(" ") : undefined;
             }}
             overlayNoRowsTemplate='<span class="erp-grid-empty">표시할 업무일지가 없습니다</span>'
@@ -669,10 +899,9 @@ function DestinationDialog({
   onReload: () => void;
   onError: (message: string | null) => void;
 }) {
-  const [code, setCode] = useState("");
   const [label, setLabel] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [draft, setDraft] = useState({ code: "", label: "" });
+  const [draft, setDraft] = useState({ label: "" });
   const [isSaving, startTransition] = useTransition();
   const busy = isPending || isSaving;
 
@@ -689,14 +918,13 @@ function DestinationDialog({
         const response = await fetch("/api/work-diary-destinations", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ code, label }),
+          body: JSON.stringify({ label }),
         });
         const body = await response.json();
         if (!response.ok) {
           throw new Error(body.error ?? "행선지 저장에 실패했습니다.");
         }
         upsert(body.option);
-        setCode("");
         setLabel("");
       } catch (error) {
         onError(error instanceof Error ? error.message : "행선지 저장에 실패했습니다.");
@@ -763,16 +991,10 @@ function DestinationDialog({
         </DialogHeader>
         <div className="flex gap-2">
           <Input
-            value={code}
-            onChange={(event) => setCode(event.target.value)}
-            placeholder="코드"
-            className="h-8 w-36"
-          />
-          <Input
             value={label}
             onChange={(event) => setLabel(event.target.value)}
             placeholder="행선지명"
-            className="h-8"
+            className="h-8 min-w-40 flex-1"
           />
           <Button type="button" size="sm" disabled={busy || !label.trim()} onClick={createDestination}>
             <Plus className="size-4" />
@@ -783,7 +1005,6 @@ function DestinationDialog({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-36">코드</TableHead>
                 <TableHead>행선지명</TableHead>
                 <TableHead className="w-24 text-right">사용</TableHead>
                 <TableHead className="w-24">상태</TableHead>
@@ -795,17 +1016,6 @@ function DestinationDialog({
                 const editing = editingId === row.id;
                 return (
                   <TableRow key={row.id}>
-                    <TableCell>
-                      {editing ? (
-                        <Input
-                          value={draft.code}
-                          onChange={(event) => setDraft((current) => ({ ...current, code: event.target.value }))}
-                          className="h-8"
-                        />
-                      ) : (
-                        <span className="font-mono text-xs">{row.code}</span>
-                      )}
-                    </TableCell>
                     <TableCell>
                       {editing ? (
                         <Input
@@ -829,7 +1039,7 @@ function DestinationDialog({
                               type="button"
                               size="icon-sm"
                               variant="outline"
-                              disabled={busy || !draft.code.trim() || !draft.label.trim()}
+                              disabled={busy || !draft.label.trim()}
                               aria-label="저장"
                               onClick={() => updateDestination(row.id, draft)}
                             >
@@ -855,7 +1065,7 @@ function DestinationDialog({
                               aria-label="수정"
                               onClick={() => {
                                 setEditingId(row.id);
-                                setDraft({ code: row.code, label: row.label });
+                                setDraft({ label: row.label });
                               }}
                             >
                               <MapPin className="size-4" />
@@ -917,11 +1127,10 @@ function WorkTypeDialog({
   onReload: () => void;
   onError: (message: string | null) => void;
 }) {
-  const [code, setCode] = useState("");
   const [label, setLabel] = useState("");
   const [color, setColor] = useState(WORK_TYPE_COLORS[0].value);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [draft, setDraft] = useState({ code: "", label: "", color: WORK_TYPE_COLORS[0].value });
+  const [draft, setDraft] = useState({ label: "", color: WORK_TYPE_COLORS[0].value });
   const [isSaving, startTransition] = useTransition();
   const busy = isPending || isSaving;
 
@@ -936,14 +1145,13 @@ function WorkTypeDialog({
         const response = await fetch("/api/work-diary-types", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ code, label, color }),
+          body: JSON.stringify({ label, color }),
         });
         const body = await response.json();
         if (!response.ok) {
           throw new Error(body.error ?? "업무구분 저장에 실패했습니다.");
         }
         upsert(body.option);
-        setCode("");
         setLabel("");
         setColor(WORK_TYPE_COLORS[0].value);
       } catch (error) {
@@ -1011,12 +1219,6 @@ function WorkTypeDialog({
         </DialogHeader>
         <div className="flex flex-wrap gap-2">
           <Input
-            value={code}
-            onChange={(event) => setCode(event.target.value)}
-            placeholder="코드"
-            className="h-8 w-36"
-          />
-          <Input
             value={label}
             onChange={(event) => setLabel(event.target.value)}
             placeholder="업무구분명"
@@ -1033,7 +1235,6 @@ function WorkTypeDialog({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-36">코드</TableHead>
                 <TableHead>업무구분명</TableHead>
                 <TableHead className="w-36">색상</TableHead>
                 <TableHead className="w-24 text-right">사용</TableHead>
@@ -1046,17 +1247,6 @@ function WorkTypeDialog({
                 const editing = editingId === row.id;
                 return (
                   <TableRow key={row.id}>
-                    <TableCell>
-                      {editing ? (
-                        <Input
-                          value={draft.code}
-                          onChange={(event) => setDraft((current) => ({ ...current, code: event.target.value }))}
-                          className="h-8"
-                        />
-                      ) : (
-                        <span className="font-mono text-xs">{row.code}</span>
-                      )}
-                    </TableCell>
                     <TableCell>
                       {editing ? (
                         <Input
@@ -1090,7 +1280,7 @@ function WorkTypeDialog({
                               type="button"
                               size="icon-sm"
                               variant="outline"
-                              disabled={busy || !draft.code.trim() || !draft.label.trim()}
+                              disabled={busy || !draft.label.trim()}
                               aria-label="저장"
                               onClick={() => updateWorkType(row.id, draft)}
                             >
@@ -1116,7 +1306,7 @@ function WorkTypeDialog({
                               aria-label="수정"
                               onClick={() => {
                                 setEditingId(row.id);
-                                setDraft({ code: row.code, label: row.label, color: row.color });
+                                setDraft({ label: row.label, color: row.color });
                               }}
                             >
                               <Tags className="size-4" />
@@ -1202,103 +1392,363 @@ function ColorSelect({
   );
 }
 
-function MultilineTextCellEditor({
+function InlineTextCellEditor({
   value,
   onValueChange,
   stopEditing,
+  api,
+  node,
+  column,
+  eventKey,
+  eGridCell,
 }: CustomCellEditorProps<WorkDiaryGridRow, string | null>) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const [textValue, setTextValue] = useState(String(value ?? ""));
+  const cancelAfterEndRef = useRef(false);
+  const [textValue, setTextValue] = useState(() => getInitialMultilineEditorValue(value, eventKey));
+  const placeholder = `${column.getColDef().headerName ?? "내용"} 입력`;
+
+  const resizeEditorRow = useCallback(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    textarea.style.height = "auto";
+    const editorHeight = Math.max(INLINE_TEXT_EDITOR_MIN_ROW_HEIGHT - INLINE_TEXT_EDITOR_ROW_PADDING, textarea.scrollHeight);
+    const rowHeight = Math.max(INLINE_TEXT_EDITOR_MIN_ROW_HEIGHT, editorHeight + INLINE_TEXT_EDITOR_ROW_PADDING);
+    textarea.style.height = `${editorHeight}px`;
+
+    if (Math.abs((node.rowHeight ?? 0) - rowHeight) > 1) {
+      node.setRowHeight(rowHeight);
+      api.onRowHeightChanged();
+    }
+  }, [api, node]);
+
+  useGridCellEditor({
+    focusIn: () => textareaRef.current?.focus({ preventScroll: true }),
+    getValidationElement: () => textareaRef.current ?? eGridCell,
+    isCancelAfterEnd: () => cancelAfterEndRef.current,
+  });
 
   useLayoutEffect(() => {
     const textarea = textareaRef.current;
     if (!textarea) return;
 
     textarea.focus({ preventScroll: true });
-    textarea.setSelectionRange(textarea.value.length, textarea.value.length);
-  }, []);
+    const selectionStart = shouldSelectInitialEditorValue(eventKey) ? 0 : textarea.value.length;
+    textarea.setSelectionRange(selectionStart, textarea.value.length);
+  }, [eventKey]);
+
+  useLayoutEffect(() => {
+    onValueChange(textValue);
+    resizeEditorRow();
+    window.requestAnimationFrame(resizeEditorRow);
+  }, [onValueChange, resizeEditorRow, textValue]);
 
   return (
     <textarea
       ref={textareaRef}
-      className="work-diary-multiline-editor"
+      className="work-diary-inline-editor"
+      aria-label={placeholder}
+      placeholder={placeholder}
       enterKeyHint="enter"
+      spellCheck={false}
       value={textValue}
-      onChange={(event) => {
-        setTextValue(event.target.value);
-        onValueChange(event.target.value);
-      }}
+      onChange={(event) => setTextValue(event.target.value)}
+      onInput={resizeEditorRow}
       onKeyDown={(event) => {
-        if (event.key !== "Enter") {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          event.stopPropagation();
+          cancelAfterEndRef.current = true;
+          api.stopEditing(true);
+          return;
+        }
+
+        if (event.key === "Tab") {
+          event.preventDefault();
+          event.stopPropagation();
+          cancelAfterEndRef.current = false;
+          stopEditing(false);
+          window.requestAnimationFrame(() =>
+            focusNextEditableCell(api, node.rowIndex ?? 0, column.getColId(), event.shiftKey ? "left" : "right"),
+          );
+          return;
+        }
+
+        if (event.key === "Enter" && (event.altKey || event.metaKey)) {
+          event.preventDefault();
+          event.stopPropagation();
+          insertLineBreakAtSelection(textareaRef.current, setTextValue);
+          return;
+        }
+
+        if (event.key === "Enter") {
+          if (event.nativeEvent.isComposing || isCoarsePointerDevice()) return;
+          event.preventDefault();
+          event.stopPropagation();
+          cancelAfterEndRef.current = false;
+          stopEditing(false);
+          window.requestAnimationFrame(() =>
+            focusNextEditableCell(api, node.rowIndex ?? 0, column.getColId(), event.shiftKey ? "up" : "down"),
+          );
           return;
         }
 
         event.stopPropagation();
-
-        if (isCoarsePointerDevice()) {
-          return;
-        }
-
-        if (event.shiftKey || event.altKey) {
-          return;
-        }
-
-        event.preventDefault();
-        stopEditing();
       }}
     />
   );
 }
 
-function maintainMultilineEditorRowHeight(event: CellEditingStartedEvent<WorkDiaryGridRow>) {
-  const rowHeight = Math.max(event.node.rowHeight ?? 0, MULTILINE_EDITOR_ROW_HEIGHT);
-  const rowIndex = event.node.rowIndex;
-  const rowPinned = event.node.rowPinned;
-  const columnId = event.column.getColId();
+function insertLineBreakAtSelection(
+  textarea: HTMLTextAreaElement | null,
+  setTextValue: (value: string) => void,
+) {
+  if (!textarea) return;
 
-  const isStillEditing = () =>
-    event.api
-      .getEditingCells()
-      .some(
-        (cell) =>
-          cell.rowIndex === rowIndex &&
-          cell.rowPinned === rowPinned &&
-          cell.column?.getColId() === columnId,
-      );
+  const start = textarea.selectionStart;
+  const end = textarea.selectionEnd;
+  const nextValue = `${textarea.value.slice(0, start)}\n${textarea.value.slice(end)}`;
+  setTextValue(nextValue);
 
-  const applyRowHeight = () => {
-    event.node.setRowHeight(rowHeight);
-    event.api.onRowHeightChanged();
-  };
-
-  const keepRowHeightIfStillEditing = () => {
-    if (!isStillEditing()) {
-      return;
-    }
-
-    applyRowHeight();
-  };
-
-  applyRowHeight();
-  window.requestAnimationFrame(keepRowHeightIfStillEditing);
-  window.setTimeout(keepRowHeightIfStillEditing, 50);
+  window.requestAnimationFrame(() => {
+    textarea.focus({ preventScroll: true });
+    textarea.setSelectionRange(start + 1, start + 1);
+  });
 }
 
-function suppressMultilineEditorKeyboardEvent(params: SuppressKeyboardEventParams<WorkDiaryGridRow>) {
-  if (!params.editing || params.event.key !== "Enter") {
+function suppressInlineTextEditorKeyboardEvent(params: SuppressKeyboardEventParams<WorkDiaryGridRow>) {
+  if (!params.editing || !(params.event.target instanceof HTMLTextAreaElement)) {
     return false;
   }
-
-  return params.event.target instanceof HTMLTextAreaElement;
-}
-
-function isMultilineTextField(field: string | undefined) {
-  return field === "primaryWork" || field === "secondaryWork" || field === "memo";
+  return TEXTAREA_OWNED_KEYS.has(params.event.key) || params.event.key.length === 1;
 }
 
 function isCoarsePointerDevice() {
   if (typeof window === "undefined") return false;
   return window.matchMedia("(pointer: coarse)").matches || window.navigator.maxTouchPoints > 0;
+}
+
+function getInitialMultilineEditorValue(value: string | null | undefined, eventKey: string | null) {
+  if (eventKey === "Backspace" || eventKey === "Delete") {
+    return "";
+  }
+
+  if (isPrintableEditorStartKey(eventKey)) {
+    return eventKey;
+  }
+
+  return String(value ?? "");
+}
+
+function shouldSelectInitialEditorValue(eventKey: string | null) {
+  return eventKey === "Enter" || eventKey === "F2";
+}
+
+function isPrintableEditorStartKey(eventKey: string | null): eventKey is string {
+  return typeof eventKey === "string" && eventKey.length === 1 && !eventKey.match(/\p{Control}/u);
+}
+
+function isEditableField(field: string | undefined): field is EditableField {
+  return field === "workTypeId" || field === "primaryWork" || field === "secondaryWork" || field === "destinationId" || field === "memo";
+}
+
+function isInlineTextField(field: string | undefined) {
+  return field === "primaryWork" || field === "secondaryWork" || field === "memo";
+}
+
+function isFormEditingTarget(target: EventTarget | null) {
+  return target instanceof HTMLElement && Boolean(target.closest("input, textarea, [contenteditable='true']"));
+}
+
+function isSaveShortcut(event: ReactKeyboardEvent<HTMLElement>) {
+  return (event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLocaleLowerCase("en-US") === "s";
+}
+
+function collectGridRows(api: GridApi<WorkDiaryGridRow>) {
+  const collectedRows: WorkDiaryGridRow[] = [];
+  api.forEachNode((node) => {
+    if (node.data) {
+      collectedRows.push(node.data);
+    }
+  });
+  return collectedRows;
+}
+
+function parseClipboardRows(text: string) {
+  return text
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .replace(/\n$/, "")
+    .split("\n")
+    .map((row) => row.split("\t"));
+}
+
+function getEditableColumnsFrom(api: GridApi<WorkDiaryGridRow>, startColumnIndex: number) {
+  return api
+    .getAllDisplayedColumns()
+    .slice(Math.max(0, startColumnIndex))
+    .map((column) => column.getColDef().field)
+    .filter(isEditableField);
+}
+
+function getEditableDisplayedColumns(api: GridApi<WorkDiaryGridRow>) {
+  return api
+    .getAllDisplayedColumns()
+    .map((column) => ({ column, field: column.getColDef().field }))
+    .filter((item): item is { column: Column; field: EditableField } =>
+      isEditableField(item.field),
+    );
+}
+
+function focusNextEditableCell(
+  api: GridApi<WorkDiaryGridRow>,
+  rowIndex: number,
+  colId: string,
+  direction: "down" | "up" | "right" | "left",
+) {
+  const rowCount = api.getDisplayedRowCount();
+  if (rowCount === 0) return;
+
+  const editableColumns = getEditableDisplayedColumns(api);
+  if (editableColumns.length === 0) return;
+
+  const currentColumnIndex = editableColumns.findIndex((item) => item.column.getColId() === colId);
+  const fallbackColumnIndex = Math.max(0, editableColumns.findIndex((item) => item.column.getColDef().field === "primaryWork"));
+  let nextRowIndex = rowIndex;
+  let nextColumnIndex = currentColumnIndex >= 0 ? currentColumnIndex : fallbackColumnIndex;
+
+  if (direction === "down" || direction === "up") {
+    nextRowIndex = clamp(rowIndex + (direction === "down" ? 1 : -1), 0, rowCount - 1);
+  } else if (direction === "right") {
+    if (nextColumnIndex >= editableColumns.length - 1) {
+      nextColumnIndex = 0;
+      nextRowIndex = clamp(rowIndex + 1, 0, rowCount - 1);
+    } else {
+      nextColumnIndex += 1;
+    }
+  } else if (direction === "left") {
+    if (nextColumnIndex <= 0) {
+      nextColumnIndex = editableColumns.length - 1;
+      nextRowIndex = clamp(rowIndex - 1, 0, rowCount - 1);
+    } else {
+      nextColumnIndex -= 1;
+    }
+  }
+
+  const nextColumn = editableColumns[nextColumnIndex]?.column;
+  if (!nextColumn) return;
+  api.ensureIndexVisible(nextRowIndex);
+  api.ensureColumnVisible(nextColumn);
+  api.setFocusedCell(nextRowIndex, nextColumn);
+}
+
+function normalizePastedCellValue(
+  field: EditableField,
+  value: string,
+  destinations: WorkDiaryDestinationRow[],
+  workTypes: WorkDiaryTypeRow[],
+) {
+  const text = value.trim();
+  if (field === "destinationId") {
+    return text ? findDestinationId(text, destinations) : null;
+  }
+  if (field === "workTypeId") {
+    return text ? findWorkTypeId(text, workTypes) : null;
+  }
+  return value;
+}
+
+function findDestinationId(value: string, destinations: WorkDiaryDestinationRow[]) {
+  const normalized = normalizeLookupText(value);
+  return (
+    destinations.find(
+      (destination) =>
+        normalizeLookupText(destination.id) === normalized ||
+        normalizeLookupText(destination.code) === normalized ||
+        normalizeLookupText(destination.label) === normalized,
+    )?.id ?? null
+  );
+}
+
+function findWorkTypeId(value: string, workTypes: WorkDiaryTypeRow[]) {
+  const normalized = normalizeLookupText(value);
+  return (
+    workTypes.find(
+      (workType) =>
+        normalizeLookupText(workType.id) === normalized ||
+        normalizeLookupText(workType.code) === normalized ||
+        normalizeLookupText(workType.label) === normalized,
+    )?.id ?? null
+  );
+}
+
+function normalizeLookupText(value: string | null | undefined) {
+  return String(value ?? "").trim().toLocaleLowerCase("ko-KR");
+}
+
+function applyEditedCellValue(
+  row: WorkDiaryGridRow,
+  field: EditableField,
+  value: unknown,
+  options: {
+    defaultWorkTypeId: string | null;
+    destinations: WorkDiaryDestinationRow[];
+    workTypes: WorkDiaryTypeRow[];
+  },
+) {
+  const nextValue = normalizeCellValue(field, value);
+  const nextRow: WorkDiaryGridRow = {
+    ...row,
+    [field]: nextValue,
+    rowState: row.isPlaceholder || row.rowState === "new" ? "new" : "modified",
+  };
+
+  if (field === "workTypeId") {
+    const workType = options.workTypes.find((item) => item.id === nextValue);
+    nextRow.workType = workType?.label ?? "";
+    nextRow.workTypeCode = workType?.code ?? null;
+    nextRow.workTypeLabel = workType?.label ?? null;
+    nextRow.workTypeColor = workType?.color ?? null;
+  }
+
+  if (field === "destinationId") {
+    const destination = options.destinations.find((item) => item.id === nextValue);
+    nextRow.destinationCode = destination?.code ?? null;
+    nextRow.destinationLabel = destination?.label ?? null;
+  }
+
+  const hasContent = rowHasContent(nextRow, options.defaultWorkTypeId);
+  if (row.isPlaceholder || (row.rowState === "new" && row.id.startsWith("placeholder:"))) {
+    nextRow.isPlaceholder = !hasContent;
+    nextRow.rowState = hasContent ? "new" : "clean";
+  }
+
+  return nextRow;
+}
+
+function hasPersistedCellChange(previousRow: WorkDiaryGridRow, nextRow: WorkDiaryGridRow) {
+  return (
+    previousRow.workTypeId !== nextRow.workTypeId ||
+    previousRow.primaryWork !== nextRow.primaryWork ||
+    previousRow.secondaryWork !== nextRow.secondaryWork ||
+    previousRow.destinationId !== nextRow.destinationId ||
+    previousRow.memo !== nextRow.memo
+  );
+}
+
+function getClipboardCellText(
+  row: WorkDiaryGridRow,
+  field: string,
+  destinationNameById: Map<string, string>,
+  workTypeNameById: Map<string, string>,
+) {
+  if (field === "destinationId") {
+    return row.destinationId ? destinationNameById.get(row.destinationId) ?? row.destinationLabel ?? "" : "";
+  }
+  if (field === "workTypeId") {
+    return row.workTypeId ? workTypeNameById.get(row.workTypeId) ?? row.workTypeLabel ?? row.workType ?? "" : "";
+  }
+  return String(row[field as keyof WorkDiaryGridRow] ?? "");
 }
 
 function toGridRows(rows: WorkDiaryRow[], workTypes: WorkDiaryTypeRow[]): WorkDiaryGridRow[] {
@@ -1315,6 +1765,24 @@ function toGridRows(rows: WorkDiaryRow[], workTypes: WorkDiaryTypeRow[]): WorkDi
     rowState: "clean",
     isDeleted: false,
   }));
+}
+
+function findPreferredRow(rows: WorkDiaryGridRow[], todayText: string) {
+  return rows.find((row) => row.workDate === todayText) ?? rows[0] ?? null;
+}
+
+function selectPreferredRow(
+  api: GridApi<WorkDiaryGridRow> | null,
+  rows: WorkDiaryGridRow[],
+  todayText: string,
+) {
+  if (!api || rows.length === 0) return;
+
+  const preferredIndex = Math.max(0, rows.findIndex((row) => row.workDate === todayText));
+  window.requestAnimationFrame(() => {
+    api.ensureIndexVisible(preferredIndex, "middle");
+    api.getDisplayedRowAtIndex(preferredIndex)?.setSelected(true);
+  });
 }
 
 function resetPlaceholderRow(
@@ -1360,16 +1828,17 @@ function rowHasContent(
 ) {
   return Boolean(
     (row.workTypeId && row.workTypeId !== defaultWorkTypeId && row.workTypeId !== EMPTY_WORK_TYPE) ||
-      row.primaryWork.trim() ||
-      row.secondaryWork.trim() ||
-      row.memo.trim() ||
+      String(row.primaryWork ?? "").trim() ||
+      String(row.secondaryWork ?? "").trim() ||
+      String(row.memo ?? "").trim() ||
       (row.destinationId && row.destinationId !== EMPTY_DESTINATION),
   );
 }
 
 function normalizeCellValue(field: string, value: unknown) {
-  if (field === "destinationId" && value === EMPTY_DESTINATION) return null;
-  if (field === "workTypeId" && value === EMPTY_WORK_TYPE) return null;
+  if (field === "destinationId" && (value === EMPTY_DESTINATION || String(value ?? "").trim() === "")) return null;
+  if (field === "workTypeId" && (value === EMPTY_WORK_TYPE || String(value ?? "").trim() === "")) return null;
+  if (field === "primaryWork" || field === "secondaryWork" || field === "memo") return String(value ?? "");
   return value;
 }
 
@@ -1416,6 +1885,10 @@ function isHoliday(value: string) {
   return new Set(["01-01", "03-01", "05-05", "06-06", "08-15", "10-03", "10-09", "12-25"]).has(
     `${month}-${day}`,
   );
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
 }
 
 function shiftMonth(value: string, delta: -1 | 1) {

@@ -38,7 +38,7 @@ export async function POST(request: Request) {
 
     const body = createSchema.parse(await request.json());
     const option = await createWorkDiaryType({
-      code: body.code ?? body.label,
+      code: body.code,
       label: body.label,
       color: body.color,
     });
