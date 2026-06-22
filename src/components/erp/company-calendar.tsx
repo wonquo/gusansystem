@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useState, useTransition } from "react";
+import { type CSSProperties, FormEvent, useEffect, useMemo, useState, useTransition } from "react";
 import {
   ChevronDown,
   ChevronLeft,
@@ -8,6 +8,8 @@ import {
   ListFilter,
   Plus,
   Send,
+  Settings,
+  Trash2,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -36,12 +38,22 @@ import type {
   CalendarEventRow,
 } from "@/lib/types";
 
-const CATEGORIES: CalendarEventCategory[] = ["휴가", "출장", "회의", "교육", "외근", "기타"];
 const MAX_VISIBLE_LANES = 3;
+const CATEGORY_STORAGE_KEY = "gusan.calendar.categories.v1";
 const MONTH_OPTIONS = Array.from({ length: 12 }, (_, index) => ({
   label: `${index + 1}월`,
   value: index,
 }));
+const CATEGORY_SWATCHES = [
+  "#f43f5e",
+  "#2563eb",
+  "#7c3aed",
+  "#f59e0b",
+  "#10b981",
+  "#64748b",
+  "#06b6d4",
+  "#ec4899",
+];
 
 type CalendarForm = {
   title: string;
@@ -56,35 +68,20 @@ type CalendarForm = {
   attendees: CalendarEventAttendee[];
 };
 
-const categoryStyles: Record<
-  CalendarEventCategory,
-  { pill: string; checkbox: string }
-> = {
-  휴가: {
-    pill: "bg-rose-50 text-rose-700 ring-rose-100",
-    checkbox: "bg-rose-500",
-  },
-  출장: {
-    pill: "bg-blue-50 text-blue-700 ring-blue-100",
-    checkbox: "bg-blue-500",
-  },
-  회의: {
-    pill: "bg-violet-50 text-violet-700 ring-violet-100",
-    checkbox: "bg-violet-500",
-  },
-  교육: {
-    pill: "bg-amber-50 text-amber-700 ring-amber-100",
-    checkbox: "bg-amber-500",
-  },
-  외근: {
-    pill: "bg-emerald-50 text-emerald-700 ring-emerald-100",
-    checkbox: "bg-emerald-500",
-  },
-  기타: {
-    pill: "bg-slate-50 text-slate-700 ring-slate-100",
-    checkbox: "bg-slate-500",
-  },
+type CalendarCategoryOption = {
+  id: string;
+  label: CalendarEventCategory;
+  color: string;
 };
+
+const DEFAULT_CATEGORY_OPTIONS: CalendarCategoryOption[] = [
+  { id: "category-vacation", label: "휴가", color: "#f43f5e" },
+  { id: "category-trip", label: "출장", color: "#2563eb" },
+  { id: "category-meeting", label: "회의", color: "#7c3aed" },
+  { id: "category-training", label: "교육", color: "#f59e0b" },
+  { id: "category-outside", label: "외근", color: "#10b981" },
+  { id: "category-etc", label: "기타", color: "#64748b" },
+];
 
 function toDateInputValue(date: Date) {
   const year = date.getFullYear();
@@ -135,6 +132,121 @@ function formatDateRangeLabel(startDate: string, endDate: string) {
 }
 
 const todayValue = toDateInputValue(new Date());
+
+function normalizeCategoryLabel(label: string) {
+  return label.trim().replace(/\s+/g, " ");
+}
+
+function normalizeCategoryColor(color: string) {
+  return /^#[0-9a-fA-F]{6}$/.test(color) ? color.toLowerCase() : "#64748b";
+}
+
+function createCategoryOption(label: string, color = "#64748b"): CalendarCategoryOption {
+  const normalizedLabel = normalizeCategoryLabel(label) || "기타";
+
+  return {
+    id: `category-${encodeURIComponent(normalizedLabel)}`,
+    label: normalizedLabel,
+    color: normalizeCategoryColor(color),
+  };
+}
+
+function getEventCategoryOptions(
+  events: CalendarEventRow[],
+  existingOptions: CalendarCategoryOption[] = DEFAULT_CATEGORY_OPTIONS,
+) {
+  const labels = new Set(existingOptions.map((category) => category.label));
+
+  return events.reduce<CalendarCategoryOption[]>((options, event) => {
+    const label = normalizeCategoryLabel(event.category);
+    if (!label || labels.has(label)) {
+      return options;
+    }
+
+    labels.add(label);
+    options.push(createCategoryOption(label, CATEGORY_SWATCHES[options.length % CATEGORY_SWATCHES.length]));
+
+    return options;
+  }, []);
+}
+
+function mergeCategoryOptions(...optionGroups: CalendarCategoryOption[][]) {
+  const byLabel = new Map<string, CalendarCategoryOption>();
+
+  for (const options of optionGroups) {
+    for (const option of options) {
+      const label = normalizeCategoryLabel(option.label);
+      if (!label) {
+        continue;
+      }
+
+      byLabel.set(label, {
+        id: option.id || createCategoryOption(label).id,
+        label,
+        color: normalizeCategoryColor(option.color),
+      });
+    }
+  }
+
+  return Array.from(byLabel.values());
+}
+
+function buildInitialCategoryOptions(events: CalendarEventRow[]) {
+  return mergeCategoryOptions(
+    DEFAULT_CATEGORY_OPTIONS,
+    getEventCategoryOptions(events, DEFAULT_CATEGORY_OPTIONS),
+  );
+}
+
+function parseStoredCategoryOptions(value: string | null) {
+  if (!value) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(value);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed
+      .filter(
+        (option): option is CalendarCategoryOption =>
+          option &&
+          typeof option.id === "string" &&
+          typeof option.label === "string" &&
+          typeof option.color === "string",
+      )
+      .map((option) => ({
+        id: option.id,
+        label: normalizeCategoryLabel(option.label),
+        color: normalizeCategoryColor(option.color),
+      }))
+      .filter((option) => option.label);
+  } catch {
+    return [];
+  }
+}
+
+function hexToRgb(color: string) {
+  const normalized = normalizeCategoryColor(color).slice(1);
+
+  return {
+    r: Number.parseInt(normalized.slice(0, 2), 16),
+    g: Number.parseInt(normalized.slice(2, 4), 16),
+    b: Number.parseInt(normalized.slice(4, 6), 16),
+  };
+}
+
+function getCategoryPillStyle(color: string): CSSProperties {
+  const { r, g, b } = hexToRgb(color);
+
+  return {
+    backgroundColor: `rgba(${r}, ${g}, ${b}, 0.12)`,
+    boxShadow: `inset 0 0 0 1px rgba(${r}, ${g}, ${b}, 0.22)`,
+    color,
+  };
+}
 
 function createEmptyForm(date = todayValue): CalendarForm {
   return {
@@ -229,22 +341,82 @@ export function CompanyCalendar({
   attendeeOptions: CalendarAttendeeOption[];
   initialEvents: CalendarEventRow[];
 }) {
+  const initialCategoryOptions = useMemo(
+    () => buildInitialCategoryOptions(initialEvents),
+    [initialEvents],
+  );
   const [events, setEvents] = useState(initialEvents);
   const [visibleMonth, setVisibleMonth] = useState(
     () => new Date(new Date().getFullYear(), new Date().getMonth(), 1),
   );
   const [selectedDate, setSelectedDate] = useState(todayValue);
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isCategoryManagerOpen, setIsCategoryManagerOpen] = useState(false);
   const [form, setForm] = useState<CalendarForm>(() => createEmptyForm());
+  const [categoryOptions, setCategoryOptions] = useState(initialCategoryOptions);
+  const [categoryDrafts, setCategoryDrafts] = useState(initialCategoryOptions);
+  const [didLoadStoredCategories, setDidLoadStoredCategories] = useState(false);
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [attendeeQuery, setAttendeeQuery] = useState("");
-  const [visibleCategories, setVisibleCategories] = useState<CalendarEventCategory[]>(CATEGORIES);
+  const [visibleCategories, setVisibleCategories] = useState<CalendarEventCategory[]>(
+    () => initialCategoryOptions.map((category) => category.label),
+  );
   const [error, setError] = useState<string | null>(null);
+  const [categoryManagerError, setCategoryManagerError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const monthCells = useMemo(() => buildMonthCells(visibleMonth), [visibleMonth]);
   const miniMonthCells = useMemo(() => buildMonthCells(visibleMonth), [visibleMonth]);
+  const categoryLabels = useMemo(
+    () => categoryOptions.map((category) => category.label),
+    [categoryOptions],
+  );
+  const categoryOptionByLabel = useMemo(
+    () => new Map(categoryOptions.map((category) => [category.label, category])),
+    [categoryOptions],
+  );
   const visibleCategorySet = useMemo(() => new Set(visibleCategories), [visibleCategories]);
+
+  useEffect(() => {
+    const storedCategoryOptions =
+      typeof window === "undefined"
+        ? []
+        : parseStoredCategoryOptions(window.localStorage.getItem(CATEGORY_STORAGE_KEY));
+    const baseOptions = storedCategoryOptions.length
+      ? storedCategoryOptions
+      : DEFAULT_CATEGORY_OPTIONS;
+    const nextOptions = mergeCategoryOptions(
+      baseOptions,
+      getEventCategoryOptions(initialEvents, baseOptions),
+    );
+
+    const timeoutId = window.setTimeout(() => {
+      setCategoryOptions(nextOptions);
+      setCategoryDrafts(nextOptions);
+      setVisibleCategories((current) => {
+        const currentSet = new Set(current);
+        const initialLabels = initialCategoryOptions.map((category) => category.label);
+        const hadAllInitialVisible = initialLabels.every((label) => currentSet.has(label));
+
+        return hadAllInitialVisible
+          ? nextOptions.map((category) => category.label)
+          : nextOptions
+              .map((category) => category.label)
+              .filter((label) => currentSet.has(label));
+      });
+      setDidLoadStoredCategories(true);
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [initialEvents, initialCategoryOptions]);
+
+  useEffect(() => {
+    if (!didLoadStoredCategories || typeof window === "undefined") {
+      return;
+    }
+
+    window.localStorage.setItem(CATEGORY_STORAGE_KEY, JSON.stringify(categoryOptions));
+  }, [categoryOptions, didLoadStoredCategories]);
 
   // 연결된(여러 날 이어지는) 일정이 어느 날에서도 같은 행(레인)에 표시되도록
   // 일정마다 고정 레인을 부여한다. 기간이 길수록 위쪽 레인을 차지한다.
@@ -351,7 +523,9 @@ export function CompanyCalendar({
   }
 
   function toggleAllCategories() {
-    setVisibleCategories((current) => (current.length === CATEGORIES.length ? [] : CATEGORIES));
+    setVisibleCategories((current) =>
+      current.length === categoryLabels.length ? [] : categoryLabels,
+    );
   }
 
   function openEventForm(dateValue: string) {
@@ -359,11 +533,165 @@ export function CompanyCalendar({
     setEditingEventId(null);
     setForm((current) => ({
       ...createEmptyForm(dateValue),
-      category: current.category,
+      category: categoryLabels.includes(current.category)
+        ? current.category
+        : categoryLabels[0] ?? "기타",
     }));
     setAttendeeQuery("");
     setError(null);
     setIsFormOpen(true);
+  }
+
+  function openCategoryManager() {
+    setCategoryDrafts(categoryOptions);
+    setCategoryManagerError(null);
+    setIsCategoryManagerOpen(true);
+  }
+
+  function addCategoryDraft() {
+    const nextNumber = categoryDrafts.length + 1;
+
+    setCategoryDrafts((current) => [
+      ...current,
+      createCategoryOption(`새 유형 ${nextNumber}`, CATEGORY_SWATCHES[current.length % CATEGORY_SWATCHES.length]),
+    ]);
+  }
+
+  function updateCategoryDraft(
+    id: string,
+    update: Partial<Pick<CalendarCategoryOption, "label" | "color">>,
+  ) {
+    setCategoryDrafts((current) =>
+      current.map((category) =>
+        category.id === id
+          ? {
+              ...category,
+              ...update,
+            }
+          : category,
+      ),
+    );
+  }
+
+  function removeCategoryDraft(id: string) {
+    setCategoryDrafts((current) =>
+      current.length <= 1 ? current : current.filter((category) => category.id !== id),
+    );
+  }
+
+  function buildEventPayload(event: CalendarEventRow, category: CalendarEventCategory) {
+    return {
+      title: event.title,
+      category,
+      startDate: event.startDate || event.eventDate,
+      endDate: event.endDate || event.startDate || event.eventDate,
+      allDay: event.allDay,
+      startTime: event.startTime,
+      endTime: event.endTime,
+      location: event.location ?? "",
+      note: event.note ?? "",
+      attendees: event.attendees ?? [],
+    };
+  }
+
+  function saveCategoryManager(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setCategoryManagerError(null);
+
+    const normalizedDrafts = categoryDrafts.map((category) => ({
+      ...category,
+      label: normalizeCategoryLabel(category.label),
+      color: normalizeCategoryColor(category.color),
+    }));
+    const duplicateLabels = new Set<string>();
+    const seenLabels = new Set<string>();
+
+    for (const category of normalizedDrafts) {
+      if (!category.label) {
+        setCategoryManagerError("유형 이름을 입력해 주세요.");
+        return;
+      }
+
+      if (seenLabels.has(category.label)) {
+        duplicateLabels.add(category.label);
+      }
+      seenLabels.add(category.label);
+    }
+
+    if (duplicateLabels.size > 0) {
+      setCategoryManagerError("같은 이름의 유형이 있습니다.");
+      return;
+    }
+
+    const nextOptions = mergeCategoryOptions(normalizedDrafts);
+    const renameMap = new Map<string, CalendarEventCategory>();
+
+    for (const currentCategory of categoryOptions) {
+      const nextCategory = nextOptions.find((category) => category.id === currentCategory.id);
+      if (nextCategory && nextCategory.label !== currentCategory.label) {
+        renameMap.set(currentCategory.label, nextCategory.label);
+      }
+    }
+
+    const nextLabelSet = new Set(nextOptions.map((category) => category.label));
+    const removedUsedCategory = events.find((calendarEvent) => {
+      const nextCategory = renameMap.get(calendarEvent.category) ?? calendarEvent.category;
+
+      return !nextLabelSet.has(nextCategory);
+    });
+    if (removedUsedCategory) {
+      setCategoryManagerError(`${removedUsedCategory.category} 유형은 사용 중이라 삭제할 수 없습니다.`);
+      return;
+    }
+
+    startTransition(async () => {
+      const updatedEvents = new Map<string, CalendarEventRow>();
+
+      for (const [fromCategory, toCategory] of renameMap) {
+        const targetEvents = events.filter((calendarEvent) => calendarEvent.category === fromCategory);
+
+        for (const calendarEvent of targetEvents) {
+          const response = await fetch("/api/calendar-events", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              ...buildEventPayload(calendarEvent, toCategory),
+              id: calendarEvent.id,
+            }),
+          });
+          const data = await response.json();
+
+          if (!response.ok) {
+            setCategoryManagerError(data.error ?? "유형 변경을 저장하지 못했습니다.");
+            return;
+          }
+
+          updatedEvents.set(calendarEvent.id, data.event);
+        }
+      }
+
+      setEvents((current) =>
+        current.map((calendarEvent) => updatedEvents.get(calendarEvent.id) ?? calendarEvent),
+      );
+      setCategoryOptions(nextOptions);
+      setVisibleCategories((current) => {
+        const currentSet = new Set(
+          current.map((category) => renameMap.get(category) ?? category),
+        );
+        const hadAllVisible = categoryOptions.every((category) => currentSet.has(category.label));
+
+        return hadAllVisible
+          ? nextOptions.map((category) => category.label)
+          : nextOptions
+              .map((category) => category.label)
+              .filter((label) => currentSet.has(label));
+      });
+      setForm((current) => ({
+        ...current,
+        category: renameMap.get(current.category) ?? current.category,
+      }));
+      setIsCategoryManagerOpen(false);
+    });
   }
 
   function openEventEditor(event: CalendarEventRow) {
@@ -444,6 +772,40 @@ export function CompanyCalendar({
         );
       });
       setSelectedDate(data.event.startDate);
+      setForm((current) => ({
+        ...createEmptyForm(current.startDate),
+        category: current.category,
+      }));
+      setEditingEventId(null);
+      setAttendeeQuery("");
+      setIsFormOpen(false);
+    });
+  }
+
+  function deleteEvent() {
+    if (!editingEventId) {
+      return;
+    }
+
+    const title = form.title.trim() || "선택한 일정";
+    if (!window.confirm(`${title}을(를) 삭제하시겠습니까?`)) {
+      return;
+    }
+
+    setError(null);
+    startTransition(async () => {
+      const response = await fetch(
+        `/api/calendar-events?id=${encodeURIComponent(editingEventId)}`,
+        { method: "DELETE" },
+      );
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.error ?? "일정을 삭제하지 못했습니다.");
+        return;
+      }
+
+      setEvents((current) => current.filter((event) => event.id !== editingEventId));
       setForm((current) => ({
         ...createEmptyForm(current.startDate),
         category: current.category,
@@ -622,13 +984,15 @@ export function CompanyCalendar({
                         }
 
                         const spanPosition = getEventSpanPosition(event, cell.dateValue);
+                        const categoryOption =
+                          categoryOptionByLabel.get(event.category) ??
+                          createCategoryOption(event.category);
 
                         return (
                           <button
                             aria-label={getEventCalendarLabel(event)}
                             className={cn(
-                              "relative z-10 block min-w-0 px-2 py-1 text-left text-xs font-bold leading-tight ring-1",
-                              categoryStyles[event.category].pill,
+                              "relative z-10 block min-w-0 px-2 py-1 text-left text-xs font-bold leading-tight",
                               spanPosition === "single" && "rounded-md",
                               spanPosition === "start" &&
                                 "-mr-1.5 rounded-l-md rounded-r-none border-r-0 pr-1",
@@ -638,6 +1002,7 @@ export function CompanyCalendar({
                                 "-ml-1.5 rounded-l-none rounded-r-md border-l-0 pl-1",
                               !cell.isCurrentMonth && "opacity-55 grayscale",
                             )}
+                            style={getCategoryPillStyle(categoryOption.color)}
                             key={event.id}
                             onClick={(clickEvent) => {
                               clickEvent.stopPropagation();
@@ -716,18 +1081,30 @@ export function CompanyCalendar({
 
             <section className="mt-8 border-t border-[#eef1f5] pt-6">
               <div className="mb-4 flex items-center justify-between">
-                <h2 className="text-base font-bold text-[#111827]">캘린더</h2>
+                <div className="flex items-center gap-1.5">
+                  <h2 className="text-base font-bold text-[#111827]">캘린더</h2>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-7 text-[#7c8aa0] hover:bg-[#eef5ff] hover:text-[#1d5fc2]"
+                    aria-label="캘린더 유형 관리"
+                    onClick={openCategoryManager}
+                    type="button"
+                  >
+                    <Settings className="size-4" />
+                  </Button>
+                </div>
                 <button
                   className="text-sm font-semibold text-[#2f70dc] hover:text-[#1d5fc2]"
                   onClick={toggleAllCategories}
                   type="button"
                 >
-                  {visibleCategories.length === CATEGORIES.length ? "모두 숨기기" : "모두 보기"}
+                  {visibleCategories.length === categoryLabels.length ? "모두 숨기기" : "모두 보기"}
                 </button>
               </div>
               <div className="grid gap-3">
-                {CATEGORIES.map((category) => {
-                  const isVisible = visibleCategorySet.has(category);
+                {categoryOptions.map((category) => {
+                  const isVisible = visibleCategorySet.has(category.label);
 
                   return (
                     <button
@@ -735,20 +1112,20 @@ export function CompanyCalendar({
                         "flex items-center gap-3 rounded-md px-1 py-1 text-left text-sm font-semibold transition-colors hover:bg-[#eef5ff]",
                         isVisible ? "text-[#3f4654]" : "text-[#a6afbd]",
                       )}
-                      key={category}
-                      onClick={() => toggleCategory(category)}
+                      key={category.id}
+                      onClick={() => toggleCategory(category.label)}
                       type="button"
                     >
                       <span
                         className={cn(
                           "grid size-5 place-items-center rounded-md text-[11px] text-white",
-                          categoryStyles[category].checkbox,
                           !isVisible && "bg-[#cbd5e1] text-[#f8fafc]",
                         )}
+                        style={isVisible ? { backgroundColor: category.color } : undefined}
                       >
                         {isVisible ? "✓" : ""}
                       </span>
-                      {category}
+                      {category.label}
                     </button>
                   );
                 })}
@@ -757,6 +1134,92 @@ export function CompanyCalendar({
           </aside>
         </div>
       </div>
+
+      <Dialog open={isCategoryManagerOpen} onOpenChange={setIsCategoryManagerOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <form className="space-y-4" onSubmit={saveCategoryManager}>
+            <DialogHeader>
+              <DialogTitle>캘린더 유형 관리</DialogTitle>
+              <DialogDescription>
+                유형 이름과 색상을 관리합니다.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="max-h-[52vh] overflow-y-auto rounded-md border border-[#e5e7eb]">
+              {categoryDrafts.map((category) => (
+                <div
+                  className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-b border-[#eef1f5] px-3 py-2 last:border-b-0"
+                  key={category.id}
+                >
+                  <input
+                    aria-label={`${category.label || "새 유형"} 색상`}
+                    className="h-8 w-9 cursor-pointer rounded-md border border-[#d7e0ec] bg-white p-1"
+                    onChange={(event) =>
+                      updateCategoryDraft(category.id, { color: event.target.value })
+                    }
+                    type="color"
+                    value={normalizeCategoryColor(category.color)}
+                  />
+
+                  <Input
+                    aria-label="캘린더 유형 이름"
+                    className="h-8 border-0 bg-transparent px-1 shadow-none focus-visible:ring-0"
+                    onChange={(event) =>
+                      updateCategoryDraft(category.id, { label: event.target.value })
+                    }
+                    value={category.label}
+                  />
+
+                  <Button
+                    aria-label={`${category.label || "새 유형"} 삭제`}
+                    className="size-8 text-[#9aa3b2] hover:bg-[#f3f5f8] hover:text-red-600"
+                    disabled={categoryDrafts.length <= 1 || isPending}
+                    onClick={() => removeCategoryDraft(category.id)}
+                    size="icon"
+                    type="button"
+                    variant="ghost"
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+
+            <Button
+              className="h-8 gap-2 border-[#d7e0ec] text-[#374151] hover:bg-[#f6f8fb]"
+              disabled={isPending}
+              onClick={addCategoryDraft}
+              type="button"
+              variant="outline"
+            >
+              <Plus className="size-4" />
+              유형 추가
+            </Button>
+
+            {categoryManagerError ? (
+              <p className="text-sm font-medium text-red-600">{categoryManagerError}</p>
+            ) : null}
+
+            <DialogFooter>
+              <Button
+                disabled={isPending}
+                onClick={() => setIsCategoryManagerOpen(false)}
+                type="button"
+                variant="outline"
+              >
+                취소
+              </Button>
+              <Button
+                className="bg-[#2f70dc] text-white hover:bg-[#1d5fc2]"
+                disabled={isPending}
+                type="submit"
+              >
+                {isPending ? "저장 중" : "저장"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={isFormOpen} onOpenChange={handleFormOpenChange}>
         <DialogContent className="sm:max-w-xl">
@@ -797,8 +1260,10 @@ export function CompanyCalendar({
                       }))
                     }
                   >
-                    {CATEGORIES.map((category) => (
-                      <option key={category}>{category}</option>
+                    {categoryOptions.map((category) => (
+                      <option key={category.id} value={category.label}>
+                        {category.label}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -972,24 +1437,44 @@ export function CompanyCalendar({
               {error ? <p className="text-sm font-medium text-red-600">{error}</p> : null}
             </div>
 
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => handleFormOpenChange(false)}>
-                취소
-              </Button>
-              <Button
-                type="submit"
-                disabled={isPending}
-                className="gap-2 bg-[#2f70dc] text-white hover:bg-[#1d5fc2]"
-              >
-                <Send className="size-4" />
-                {isPending
-                  ? editingEventId
-                    ? "저장 중"
-                    : "등록 중"
-                  : editingEventId
-                    ? "저장"
-                    : "등록"}
-              </Button>
+            <DialogFooter className="sm:justify-between">
+              <div>
+                {editingEventId ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={isPending}
+                    onClick={deleteEvent}
+                    className="gap-2 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+                  >
+                    <Trash2 className="size-4" />
+                    {isPending ? "삭제 중" : "삭제"}
+                  </Button>
+                ) : null}
+              </div>
+              <div className="flex flex-col-reverse gap-2 sm:flex-row">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => handleFormOpenChange(false)}
+                >
+                  취소
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={isPending}
+                  className="gap-2 bg-[#2f70dc] text-white hover:bg-[#1d5fc2]"
+                >
+                  <Send className="size-4" />
+                  {isPending
+                    ? editingEventId
+                      ? "저장 중"
+                      : "등록 중"
+                    : editingEventId
+                      ? "저장"
+                      : "등록"}
+                </Button>
+              </div>
             </DialogFooter>
           </form>
         </DialogContent>

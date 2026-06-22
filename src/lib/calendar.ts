@@ -7,7 +7,7 @@ import type {
   CalendarEventRow,
 } from "@/lib/types";
 
-export const CALENDAR_EVENT_CATEGORIES: CalendarEventCategory[] = [
+export const CALENDAR_EVENT_CATEGORIES = [
   "휴가",
   "출장",
   "회의",
@@ -136,10 +136,24 @@ export async function updateCalendarEvent(id: string, input: CalendarEventInput)
   return serializeCalendarEvent(event, null);
 }
 
+export async function deleteCalendarEvent(id: string) {
+  const [deleted] = await getDb()
+    .delete(calendarEvents)
+    .where(eq(calendarEvents.id, id))
+    .returning({ id: calendarEvents.id })
+    .catch((error: unknown) => {
+      if (isMissingCalendarTableError(error)) {
+        throw new Error("캘린더 DB 테이블 migration 적용이 필요합니다.");
+      }
+
+      throw error;
+    });
+
+  return Boolean(deleted);
+}
+
 function normalizeCategory(value: string): CalendarEventCategory {
-  return CALENDAR_EVENT_CATEGORIES.includes(value as CalendarEventCategory)
-    ? (value as CalendarEventCategory)
-    : "기타";
+  return value.trim() || "기타";
 }
 
 function normalizeAttendees(attendees: CalendarEventAttendee[] = []) {

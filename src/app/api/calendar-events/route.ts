@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentAppUser } from "@/lib/auth";
 import {
-  CALENDAR_EVENT_CATEGORIES,
   createCalendarEvent,
+  deleteCalendarEvent,
   listCalendarEvents,
   updateCalendarEvent,
 } from "@/lib/calendar";
@@ -11,7 +11,7 @@ import {
 const eventSchema = z
   .object({
     title: z.string().trim().min(1),
-    category: z.enum(CALENDAR_EVENT_CATEGORIES),
+    category: z.string().trim().min(1).max(32),
     startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     allDay: z.boolean().default(true),
@@ -51,6 +51,7 @@ const eventSchema = z
 const updateEventSchema = eventSchema.extend({
   id: z.uuid(),
 });
+const deleteEventSchema = z.uuid();
 
 export async function GET() {
   try {
@@ -103,6 +104,29 @@ export async function PATCH(request: Request) {
     }
 
     return NextResponse.json({ event });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Invalid request" },
+      { status: 400 },
+    );
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const user = await getCurrentAppUser();
+    if (!user) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const id = deleteEventSchema.parse(searchParams.get("id"));
+    const deleted = await deleteCalendarEvent(id);
+    if (!deleted) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({ ok: true });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Invalid request" },

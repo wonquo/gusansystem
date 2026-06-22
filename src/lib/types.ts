@@ -175,7 +175,7 @@ export type MemoRow = {
   updatedAt: string;
 };
 
-export type CalendarEventCategory = "휴가" | "출장" | "회의" | "교육" | "외근" | "기타";
+export type CalendarEventCategory = string;
 
 export type CalendarEventAttendee = {
   id: string;

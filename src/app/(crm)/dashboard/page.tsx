@@ -4,11 +4,11 @@ import { requireAppUser } from "@/lib/auth";
 import { listBoardPosts } from "@/lib/board";
 import { listCalendarEvents } from "@/lib/calendar";
 import { listWorkDiaryRows } from "@/lib/work-diaries";
-import type { BoardPostRow, CalendarEventCategory, CalendarEventRow, WorkDiaryRow } from "@/lib/types";
+import type { BoardPostRow, CalendarEventRow, WorkDiaryRow } from "@/lib/types";
 
 const DAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
 
-const EVENT_COLORS: Record<CalendarEventCategory, string> = {
+const EVENT_COLORS: Record<string, string> = {
   휴가: "bg-[#21ad73]",
   출장: "bg-[#2f70dc]",
   회의: "bg-[#2f70dc]",
@@ -16,6 +16,11 @@ const EVENT_COLORS: Record<CalendarEventCategory, string> = {
   외근: "bg-[#21ad73]",
   기타: "bg-[#9aa8bc]",
 };
+const FALLBACK_EVENT_COLOR = "bg-[#9aa8bc]";
+
+function getEventColorClass(category: string) {
+  return EVENT_COLORS[category] ?? FALLBACK_EVENT_COLOR;
+}
 
 export default async function DashboardPage() {
   const user = await requireAppUser();
@@ -325,7 +330,7 @@ function CalendarDayCell({
       </span>
       <span className="flex h-1.5 items-center justify-center gap-0.5">
         {events.slice(0, 3).map((event) => (
-          <span key={event.id} className={`size-1.5 rounded-full ${EVENT_COLORS[event.category]}`} />
+          <span key={event.id} className={`size-1.5 rounded-full ${getEventColorClass(event.category)}`} />
         ))}
       </span>
       {hasEvents ? (
@@ -349,7 +354,7 @@ function CalendarDayCell({
 
               return (
                 <div key={event.id} className="flex min-w-0 items-center gap-1.5">
-                  <span className={`size-2 shrink-0 rounded-full ${EVENT_COLORS[event.category]}`} />
+                  <span className={`size-2 shrink-0 rounded-full ${getEventColorClass(event.category)}`} />
                   <p className="min-w-0 truncate text-xs text-[#1f2937]" title={summary}>
                     <span className="font-bold">{event.title}</span>
                     {meta ? <span className="font-medium text-[#6b7585]"> · {meta}</span> : null}
@@ -374,7 +379,7 @@ function AgendaItem({ event, today }: { event: CalendarEventRow; today: string }
 
   return (
     <Link href="/calendar" className="grid grid-cols-[auto_auto_1fr] items-center gap-2">
-      <span className={`size-2.5 rounded-full ${EVENT_COLORS[event.category]}`} />
+      <span className={`size-2.5 rounded-full ${getEventColorClass(event.category)}`} />
       <time className="w-11 text-xs font-semibold text-[#8a94a6]">
         {event.startDate === today ? timeLabel : formatMonthDay(event.startDate)}
       </time>
