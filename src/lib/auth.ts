@@ -20,6 +20,7 @@ const EMPLOYEE_MENU_PERMISSIONS: Record<
   calendar: ["view", "create"],
   "work-diaries": ["view", "create", "update", "delete"],
   memos: ["view", "create", "update", "delete"],
+  contacts: ["view", "create", "update", "delete"],
 };
 
 export function canManageUsers(role: AppUserRole) {

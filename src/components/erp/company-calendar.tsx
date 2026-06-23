@@ -1222,9 +1222,9 @@ export function CompanyCalendar({
       </Dialog>
 
       <Dialog open={isFormOpen} onOpenChange={handleFormOpenChange}>
-        <DialogContent className="sm:max-w-xl">
-          <form onSubmit={submitEvent} className="space-y-4">
-            <DialogHeader>
+        <DialogContent className="top-[max(0.5rem,env(safe-area-inset-top))] bottom-[max(0.5rem,env(safe-area-inset-bottom))] flex w-[calc(100%-1rem)] max-w-none translate-y-0 flex-col gap-0 overflow-hidden rounded-xl p-0 sm:top-1/2 sm:bottom-auto sm:w-full sm:max-w-xl sm:-translate-y-1/2 sm:gap-4 sm:p-4">
+          <form onSubmit={submitEvent} className="flex min-h-0 flex-1 flex-col">
+            <DialogHeader className="shrink-0 px-4 pt-4 pr-12 pb-3 sm:px-0 sm:pt-0 sm:pr-8 sm:pb-0">
               <DialogTitle>{editingEventId ? "일정 수정" : "일정 등록"}</DialogTitle>
               <DialogDescription>
                 {formatDateRangeLabel(form.startDate, form.endDate)} 업무 일정을{" "}
@@ -1232,10 +1232,11 @@ export function CompanyCalendar({
               </DialogDescription>
             </DialogHeader>
 
-            <div className="grid gap-3">
+            <div className="grid min-h-0 flex-1 gap-3 overflow-y-auto px-4 pb-4 sm:px-0 sm:pb-0">
               <div className="grid gap-1.5">
                 <Label htmlFor="calendar-title">일정명</Label>
                 <Input
+                  className="h-11 rounded-md px-3 text-base sm:h-8 sm:px-2.5 sm:text-sm"
                   id="calendar-title"
                   value={form.title}
                   onChange={(event) =>
@@ -1251,7 +1252,7 @@ export function CompanyCalendar({
                   <Label htmlFor="calendar-category">일정 유형</Label>
                   <select
                     id="calendar-category"
-                    className="h-10 rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                    className="h-11 rounded-md border border-input bg-background px-3 text-base outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 sm:h-10 sm:text-sm"
                     value={form.category}
                     onChange={(event) =>
                       setForm((current) => ({
@@ -1269,10 +1270,10 @@ export function CompanyCalendar({
                 </div>
                 <div className="grid gap-1.5">
                   <Label className="h-5">시간 설정</Label>
-                  <label className="flex h-10 items-center gap-2 rounded-md border border-input px-3 text-sm font-semibold text-[#374151]">
+                  <label className="flex h-11 items-center gap-2 rounded-md border border-input px-3 text-base font-semibold text-[#374151] sm:h-10 sm:text-sm">
                     <input
                       checked={form.allDay ?? true}
-                      className="size-4 accent-[#2f70dc]"
+                      className="size-5 accent-[#2f70dc] sm:size-4"
                       onChange={(event) =>
                         setForm((current) => ({ ...current, allDay: event.target.checked }))
                       }
@@ -1285,8 +1286,9 @@ export function CompanyCalendar({
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="grid gap-1.5">
-                  <Label htmlFor="calendar-start-date">From</Label>
+                  <Label htmlFor="calendar-start-date">시작일</Label>
                   <Input
+                    className="h-11 rounded-md px-3 text-base sm:h-8 sm:px-2.5 sm:text-sm"
                     id="calendar-start-date"
                     type="date"
                     value={form.startDate || todayValue}
@@ -1302,8 +1304,9 @@ export function CompanyCalendar({
                   />
                 </div>
                 <div className="grid gap-1.5">
-                  <Label htmlFor="calendar-end-date">To</Label>
+                  <Label htmlFor="calendar-end-date">종료일</Label>
                   <Input
+                    className="h-11 rounded-md px-3 text-base sm:h-8 sm:px-2.5 sm:text-sm"
                     id="calendar-end-date"
                     type="date"
                     min={form.startDate || todayValue}
@@ -1319,6 +1322,7 @@ export function CompanyCalendar({
                 <div className="grid gap-1.5">
                   <Label htmlFor="calendar-start">시작 시간</Label>
                   <Input
+                    className="h-11 rounded-md px-3 text-base sm:h-8 sm:px-2.5 sm:text-sm"
                     disabled={form.allDay ?? true}
                     id="calendar-start"
                     type="time"
@@ -1331,6 +1335,7 @@ export function CompanyCalendar({
                 <div className="grid gap-1.5">
                   <Label htmlFor="calendar-end">종료 시간</Label>
                   <Input
+                    className="h-11 rounded-md px-3 text-base sm:h-8 sm:px-2.5 sm:text-sm"
                     disabled={form.allDay ?? true}
                     id="calendar-end"
                     type="time"
@@ -1346,6 +1351,7 @@ export function CompanyCalendar({
                 <Label htmlFor="calendar-attendee">대상자</Label>
                 <div className="relative">
                   <Input
+                    className="h-11 rounded-md px-3 text-base sm:h-8 sm:px-2.5 sm:text-sm"
                     autoComplete="off"
                     id="calendar-attendee"
                     onChange={(event) => setAttendeeQuery(event.target.value)}
@@ -1412,6 +1418,7 @@ export function CompanyCalendar({
               <div className="grid gap-1.5">
                 <Label htmlFor="calendar-location">장소</Label>
                 <Input
+                  className="h-11 rounded-md px-3 text-base sm:h-8 sm:px-2.5 sm:text-sm"
                   id="calendar-location"
                   value={form.location}
                   onChange={(event) =>
@@ -1430,40 +1437,41 @@ export function CompanyCalendar({
                     setForm((current) => ({ ...current, note: event.target.value }))
                   }
                   placeholder="업무 내용을 입력하세요"
-                  className="min-h-24 resize-y"
+                  className="min-h-28 resize-y rounded-md px-3 text-base sm:min-h-24 sm:px-2.5 sm:text-sm"
                 />
               </div>
 
               {error ? <p className="text-sm font-medium text-red-600">{error}</p> : null}
             </div>
 
-            <DialogFooter className="sm:justify-between">
-              <div>
+            <DialogFooter className="mx-0 mb-0 shrink-0 rounded-none border-t bg-white p-3 sm:-mx-4 sm:-mb-4 sm:justify-between sm:rounded-b-xl sm:bg-muted/50 sm:p-4">
+              <div className="contents sm:block">
                 {editingEventId ? (
                   <Button
                     type="button"
                     variant="outline"
                     disabled={isPending}
                     onClick={deleteEvent}
-                    className="gap-2 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+                    className="h-11 w-full gap-2 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 sm:h-8 sm:w-auto"
                   >
                     <Trash2 className="size-4" />
                     {isPending ? "삭제 중" : "삭제"}
                   </Button>
                 ) : null}
               </div>
-              <div className="flex flex-col-reverse gap-2 sm:flex-row">
+              <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-row">
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => handleFormOpenChange(false)}
+                  className="h-11 sm:h-8"
                 >
                   취소
                 </Button>
                 <Button
                   type="submit"
                   disabled={isPending}
-                  className="gap-2 bg-[#2f70dc] text-white hover:bg-[#1d5fc2]"
+                  className="h-11 gap-2 bg-[#2f70dc] text-white hover:bg-[#1d5fc2] sm:h-8"
                 >
                   <Send className="size-4" />
                   {isPending

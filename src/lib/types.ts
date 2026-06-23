@@ -175,6 +175,21 @@ export type MemoRow = {
   updatedAt: string;
 };
 
+export type ContactRow = {
+  id: string;
+  name: string;
+  position: string;
+  company: string;
+  phone: string;
+  email: string;
+  task: string;
+  memo: string;
+  createdBy: string | null;
+  authorName: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type CalendarEventCategory = string;
 
 export type CalendarEventAttendee = {

@@ -64,6 +64,7 @@ const mainNavItems = [
   { href: "/calendar", label: "캘린더", icon: CalendarDays },
   { href: "/work-diaries", label: "업무일지", icon: FileText },
   { href: "/memos", label: "메모", icon: StickyNote },
+  { href: "/contacts", label: "연락처", icon: UsersRound },
 ];
 
 const adminNavItems = [
@@ -161,7 +162,9 @@ export function AdminShell({
             </div>
           </div>
         </header>
-        <main className="min-h-[calc(100vh-3.5rem-1px)] px-2 py-3 md:px-3">{children}</main>
+        <main className="min-h-[calc(100vh-3.5rem-1px)] px-2 pt-3 pb-[calc(0.75rem+var(--app-bottom-safe-space))] md:px-3">
+          {children}
+        </main>
       </div>
       <DesktopViewToggle />
     </div>
@@ -189,7 +192,7 @@ function DesktopViewToggle() {
     <button
       type="button"
       onClick={() => setDesktopViewPreference(!desktopView)}
-      className="desktop-view-toggle fixed right-4 bottom-4 z-50 inline-flex h-11 items-center gap-2 rounded-full border border-[#c9d8ee] bg-white/95 px-4 text-xs font-bold text-[#1f4f9f] shadow-[0_12px_32px_rgba(15,28,48,0.18)] backdrop-blur transition hover:border-[#86a9e8] hover:bg-[#eef4ff] focus-visible:ring-2 focus-visible:ring-[#2f70dc]/30 focus-visible:outline-none"
+      className="desktop-view-toggle fixed right-4 bottom-[var(--desktop-view-toggle-bottom)] z-50 inline-flex h-11 items-center gap-2 rounded-full border border-[#c9d8ee] bg-white/95 px-4 text-xs font-bold text-[#1f4f9f] shadow-[0_12px_32px_rgba(15,28,48,0.18)] backdrop-blur transition hover:border-[#86a9e8] hover:bg-[#eef4ff] focus-visible:ring-2 focus-visible:ring-[#2f70dc]/30 focus-visible:outline-none"
       aria-pressed={desktopView}
     >
       <span className="grid size-7 place-items-center rounded-full bg-[#eaf1fd] text-[#2f70dc]">

@@ -608,14 +608,9 @@ export function WorkDiaryGrid({
 
   return (
     <div className="crm-erp-surface mx-auto flex h-[calc(100vh-5.5rem)] max-w-[1840px] flex-col gap-3 overflow-hidden">
-      <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+      <div>
         <div>
           <h1 className="text-base font-semibold tracking-tight text-[#0d1b3d]">업무일지</h1>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="outline" className="h-7 w-fit border-[#cfd9e7] bg-white px-2.5 text-xs">
-            {rows.length.toLocaleString()}건
-          </Badge>
         </div>
       </div>
 
@@ -624,18 +619,19 @@ export function WorkDiaryGrid({
           <div className="flex items-center bg-[#f2f5f9] px-3 py-2 text-[11px] font-semibold whitespace-nowrap text-[#69758a]">
             기준월
           </div>
-          <div className="flex items-center gap-2 bg-white px-2 py-1.5">
+          <div className="grid min-w-0 grid-cols-[1.75rem_minmax(0,1fr)_1.75rem] items-center gap-2 bg-white px-2 py-1.5">
             <Button
               type="button"
               variant="outline"
               size="icon-sm"
+              className="size-7"
               aria-label="전월"
               onClick={() => changeMonth(-1)}
               disabled={isPending}
             >
               <ChevronLeft className="size-4" />
             </Button>
-            <div className="relative min-w-0 flex-1">
+            <div className="relative min-w-0 overflow-hidden">
               <CalendarDays className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-[#7c8aa0]" />
               <Input
                 type="month"
@@ -652,6 +648,7 @@ export function WorkDiaryGrid({
               type="button"
               variant="outline"
               size="icon-sm"
+              className="size-7"
               aria-label="다음월"
               onClick={() => changeMonth(1)}
               disabled={isPending}

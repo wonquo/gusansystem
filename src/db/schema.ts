@@ -457,6 +457,30 @@ export const memos = pgTable(
   ],
 );
 
+export const contacts = pgTable(
+  "contacts",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    name: text("name").notNull(),
+    position: text("position").notNull().default(""),
+    company: text("company").notNull().default(""),
+    phone: text("phone").notNull().default(""),
+    email: text("email").notNull().default(""),
+    task: text("task").notNull().default(""),
+    memo: text("memo").notNull().default(""),
+    createdBy: uuid("created_by").references(() => appUsers.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("contacts_name_idx").on(table.name),
+    index("contacts_company_idx").on(table.company),
+    index("contacts_phone_idx").on(table.phone),
+    index("contacts_email_idx").on(table.email),
+    index("contacts_updated_idx").on(table.updatedAt),
+  ],
+);
+
 export const calendarEvents = pgTable(
   "calendar_events",
   {
@@ -634,6 +658,7 @@ export const appUsersRelations = relations(appUsers, ({ many }) => ({
   boardPosts: many(boardPosts),
   boardComments: many(boardComments),
   memos: many(memos),
+  contacts: many(contacts),
   calendarEvents: many(calendarEvents),
   workDiaryEntries: many(workDiaryEntries),
 }));
@@ -757,6 +782,13 @@ export const boardCommentsRelations = relations(boardComments, ({ one }) => ({
 export const memosRelations = relations(memos, ({ one }) => ({
   author: one(appUsers, {
     fields: [memos.createdBy],
+    references: [appUsers.id],
+  }),
+}));
+
+export const contactsRelations = relations(contacts, ({ one }) => ({
+  author: one(appUsers, {
+    fields: [contacts.createdBy],
     references: [appUsers.id],
   }),
 }));
