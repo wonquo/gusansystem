@@ -162,14 +162,39 @@ export function AdminShell({
             </div>
           </div>
         </header>
-        <main className="min-h-[calc(100vh-3.5rem-1px)] px-2 pt-3 pb-[calc(0.75rem+var(--app-bottom-safe-space))] md:px-3">
+        <main className="min-h-[calc(100vh-3.5rem-1px)] px-2 pt-3 pb-3 md:px-3">
           {children}
         </main>
+        <MobileAppFooter />
       </div>
-      <footer className="desktop-view-footer fixed inset-x-0 bottom-0 z-40 border-t border-[#d8e0ea] bg-white/95 px-4 py-2 pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))] shadow-[0_-12px_32px_rgba(15,28,48,0.10)] backdrop-blur">
-        <DesktopViewToggle />
-      </footer>
     </div>
+  );
+}
+
+function MobileAppFooter() {
+  return (
+    <footer className="mobile-app-footer border-t border-[#d8e0ea] bg-white px-4 py-5 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] text-[#5b6575]">
+      <div className="mx-auto flex max-w-md flex-col gap-4">
+        <div className="space-y-1 text-center text-[11px] leading-5">
+          <p className="font-semibold text-[#0d1b3d]">GUESAN ERP</p>
+          <p>© 2026 GUESAN. All rights reserved.</p>
+        </div>
+        <div className="grid gap-2">
+          <DesktopViewToggle />
+          <form action={logoutAction}>
+            <Button
+              variant="ghost"
+              size="sm"
+              type="submit"
+              className="h-11 w-full justify-center gap-2 rounded-full border border-[#d8e0ea] bg-white text-xs font-bold text-[#5b6575] hover:bg-[#f1f5fa] hover:text-[#0d1b3d]"
+            >
+              <LogOut className="size-4" />
+              로그아웃
+            </Button>
+          </form>
+        </div>
+      </div>
+    </footer>
   );
 }
 
@@ -194,7 +219,7 @@ function DesktopViewToggle() {
     <button
       type="button"
       onClick={() => setDesktopViewPreference(!desktopView)}
-      className="desktop-view-toggle mx-auto h-11 items-center justify-center gap-2 rounded-full border border-[#c9d8ee] bg-white px-4 text-xs font-bold text-[#1f4f9f] shadow-[0_8px_22px_rgba(15,28,48,0.12)] transition hover:border-[#86a9e8] hover:bg-[#eef4ff] focus-visible:ring-2 focus-visible:ring-[#2f70dc]/30 focus-visible:outline-none"
+      className="desktop-view-toggle h-11 w-full items-center justify-center gap-2 rounded-full border border-[#c9d8ee] bg-white px-4 text-xs font-bold text-[#1f4f9f] transition hover:border-[#86a9e8] hover:bg-[#eef4ff] focus-visible:ring-2 focus-visible:ring-[#2f70dc]/30 focus-visible:outline-none"
       aria-pressed={desktopView}
     >
       <span className="grid size-7 place-items-center rounded-full bg-[#eaf1fd] text-[#2f70dc]">
