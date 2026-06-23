@@ -13,7 +13,21 @@ import {
   type ValueFormatterParams,
   type ValueGetterParams,
 } from "ag-grid-community";
-import { BriefcaseBusiness, Building2, Loader2, Mail, Phone, Plus, RefreshCw, Save, Search, Trash2 } from "lucide-react";
+import {
+  BriefcaseBusiness,
+  Building2,
+  ChevronDown,
+  ChevronUp,
+  Eye,
+  Loader2,
+  Mail,
+  Phone,
+  Plus,
+  RefreshCw,
+  Save,
+  Search,
+  Trash2,
+} from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -193,6 +207,7 @@ export function ContactGrid({
   }
 
   function openContact(row: ContactRow) {
+    setSelectedRow(row);
     setDraft({
       id: row.id,
       name: row.name,
@@ -290,7 +305,7 @@ export function ContactGrid({
   }
 
   return (
-    <div className="crm-erp-surface mx-auto flex h-[calc(100vh-5.5rem)] max-w-[1840px] flex-col gap-3 overflow-hidden">
+    <div className="crm-erp-surface mx-auto flex h-[calc(100vh-5.5rem)] max-w-[1840px] flex-col gap-3 overflow-hidden max-md:h-[calc(100dvh-5.5rem)]">
       <div className="hidden flex-col gap-2 md:flex md:flex-row md:items-end md:justify-between">
         <div>
           <h1 className="text-base font-semibold tracking-tight text-[#0d1b3d]">연락처</h1>
@@ -303,30 +318,55 @@ export function ContactGrid({
       </div>
 
       <div className="overflow-hidden rounded-lg border border-[#d8e0ea] bg-white shadow-[0_1px_4px_rgba(15,28,48,0.06)]">
-        <div className="grid gap-px bg-[#edf1f6] p-px lg:grid-cols-[88px_minmax(280px,460px)_auto]">
-          <div className="flex items-center bg-[#f2f5f9] px-3 py-2 text-[11px] font-semibold whitespace-nowrap text-[#69758a]">
+        <div className="grid gap-px bg-[#edf1f6] p-px md:grid-cols-[88px_minmax(280px,460px)_auto]">
+          <div className="hidden items-center bg-[#f2f5f9] px-3 py-2 text-[11px] font-semibold whitespace-nowrap text-[#69758a] md:flex">
             검색
           </div>
           <div className="bg-white p-2">
-            <div className="relative">
-              <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-[#7c8aa0]" />
-              <Input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") reloadRows();
-                }}
-                placeholder="이름, 회사, 전화번호, 이메일, 담당업무 검색"
-                className="h-10 border-[#d8e0ea] bg-white pl-7 text-base focus-visible:border-[#2f70dc] focus-visible:ring-[#2f70dc]/20 sm:h-8 sm:text-sm"
-              />
+            <div className="flex gap-2">
+              <div className="relative min-w-0 flex-1">
+                <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-[#7c8aa0]" />
+                <Input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") reloadRows();
+                  }}
+                  placeholder="이름, 회사, 연락처 검색"
+                  className="h-10 border-[#d8e0ea] bg-white pl-7 text-base focus-visible:border-[#2f70dc] focus-visible:ring-[#2f70dc]/20 sm:h-8 sm:text-sm"
+                />
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="size-10 shrink-0 md:hidden"
+                onClick={() => reloadRows()}
+                disabled={isPending}
+                aria-label="새로고침"
+              >
+                <RefreshCw className="size-4" />
+              </Button>
+              {canCreate ? (
+                <Button
+                  type="button"
+                  size="icon"
+                  className="size-10 shrink-0 md:hidden"
+                  onClick={openNewContact}
+                  disabled={isPending}
+                  aria-label="새 연락처"
+                >
+                  <Plus className="size-4" />
+                </Button>
+              ) : null}
             </div>
           </div>
-          <div className="flex flex-col gap-2 bg-[#f8fafc] p-2 lg:flex-row lg:items-center lg:justify-end">
+          <div className="hidden flex-col gap-2 bg-[#f8fafc] p-2 md:flex md:flex-row md:items-center md:justify-end">
             <Button
               type="button"
               variant="outline"
               size="sm"
-              className="w-full justify-center lg:w-auto"
+              className="w-full justify-center md:w-auto"
               onClick={() => reloadRows()}
               disabled={isPending}
             >
@@ -338,7 +378,7 @@ export function ContactGrid({
                 type="button"
                 variant="outline"
                 size="sm"
-                className="w-full justify-center lg:w-auto"
+                className="hidden w-full justify-center md:inline-flex md:w-auto"
                 onClick={() => deleteCurrentContact()}
                 disabled={isPending}
               >
@@ -350,7 +390,7 @@ export function ContactGrid({
               <Button
                 type="button"
                 size="sm"
-                className="w-full justify-center lg:w-auto"
+                className="w-full justify-center md:w-auto"
                 onClick={openNewContact}
                 disabled={isPending}
               >
@@ -375,7 +415,32 @@ export function ContactGrid({
         </Alert>
       ) : null}
 
-      <div className="relative min-h-0 flex-1 overflow-hidden rounded-lg border border-[#d8e0ea] bg-white shadow-[0_10px_34px_rgba(15,28,48,0.06)]">
+      <div className="relative min-h-0 flex-1 overflow-y-auto md:hidden">
+        {isPending ? (
+          <div className="sticky inset-x-0 top-0 z-10 h-0.5 overflow-hidden bg-[#dbe7fb]">
+            <span className="block h-full w-1/3 animate-pulse bg-[#2f70dc]" />
+          </div>
+        ) : null}
+
+        <div className="flex flex-col gap-2 pb-2">
+          {filteredRows.length ? (
+            filteredRows.map((row) => (
+              <ContactMobileCard
+                key={row.id}
+                row={row}
+                canUpdate={canUpdate}
+                onOpen={openContact}
+              />
+            ))
+          ) : (
+            <div className="grid min-h-48 place-items-center rounded-lg border border-dashed border-[#cfd9e7] bg-white px-4 text-center text-sm text-[#64748b]">
+              표시할 연락처가 없습니다
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="relative hidden min-h-0 flex-1 overflow-hidden rounded-lg border border-[#d8e0ea] bg-white shadow-[0_10px_34px_rgba(15,28,48,0.06)] md:block">
         {isPending ? (
           <div className="absolute inset-x-0 top-0 z-10 h-0.5 overflow-hidden bg-[#dbe7fb]">
             <span className="block h-full w-1/3 animate-pulse bg-[#2f70dc]" />
@@ -424,6 +489,119 @@ export function ContactGrid({
         onSave={saveContact}
       />
     </div>
+  );
+}
+
+function ContactMobileCard({
+  row,
+  canUpdate,
+  onOpen,
+}: {
+  row: ContactRow;
+  canUpdate: boolean;
+  onOpen: (row: ContactRow) => void;
+}) {
+  const company = displayContactValue(row.company);
+  const task = displayContactValue(row.task);
+  const memo = displayContactValue(row.memo);
+  const position = displayContactValue(row.position);
+  const hasTask = row.task.trim().length > 0;
+  const hasMemo = row.memo.trim().length > 0;
+  const [isMemoOpen, setIsMemoOpen] = useState(false);
+
+  return (
+    <article
+      className="rounded-lg border border-[#dbe3ef] bg-white px-3 py-2.5 shadow-[0_8px_22px_rgba(15,28,48,0.055)]"
+      aria-label={`${row.name} 연락처`}
+    >
+      <div className="flex min-w-0 items-center gap-1.5 whitespace-nowrap">
+        <span className="max-w-[68px] shrink-0 truncate text-[15px] font-bold tracking-tight text-[#0d1b3d]">
+          {row.name || "-"}
+        </span>
+        <span className="text-[#c1cad8]">·</span>
+        <span className="max-w-[118px] shrink-0 truncate text-xs font-semibold text-[#475569]">{company}</span>
+        {row.position.trim() ? (
+          <span className="max-w-[52px] shrink-0 truncate rounded-md border border-[#d8e0ea] bg-[#f8fafc] px-1.5 py-0.5 text-[11px] font-semibold text-[#475569]">
+            {position}
+          </span>
+        ) : null}
+        <span className="text-[#c1cad8]">·</span>
+        <span className="min-w-0 flex-1 truncate text-xs text-[#64748b]">{hasTask ? task : "-"}</span>
+      </div>
+
+      {hasMemo ? (
+        <div className="mt-2 rounded-md bg-[#f8fafc] px-2.5 py-2">
+          <button
+            type="button"
+            className="flex w-full items-center justify-between gap-2 text-left text-[11px] font-bold text-[#64748b]"
+            onClick={() => setIsMemoOpen((current) => !current)}
+            aria-expanded={isMemoOpen}
+          >
+            <span>비고</span>
+            <span className="inline-flex items-center gap-1 text-[#1f4f9f]">
+              {isMemoOpen ? "접기" : "펼치기"}
+              {isMemoOpen ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
+            </span>
+          </button>
+          {isMemoOpen ? (
+            <p className="mt-2 whitespace-pre-wrap break-words text-xs leading-5 text-[#1f2937]">{memo}</p>
+          ) : null}
+        </div>
+      ) : null}
+
+      <div className="mt-2 flex items-center justify-between gap-2 text-[11px] text-[#7c8aa0]">
+        <span className="min-w-0 truncate">수정일 {formatDateTime(row.updatedAt) || "-"}</span>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <MobileContactAction type="phone" value={row.phone} />
+          <MobileContactAction type="email" value={row.email} />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8 rounded-md border-[#cdd8e7] px-2 text-[11px] font-bold text-[#1f4f9f]"
+            onClick={() => onOpen(row)}
+          >
+            <Eye className="size-3.5" />
+            {canUpdate ? "편집" : "상세"}
+          </Button>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function MobileContactAction({ type, value }: { type: "phone" | "email"; value: string }) {
+  const text = value.trim();
+  const Icon = type === "phone" ? Phone : Mail;
+  const label = type === "phone" ? "전화" : "메일";
+
+  if (!text) {
+    return (
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="h-8 rounded-md border-[#e2e8f0] px-2 text-[11px] font-bold text-[#94a3b8]"
+        disabled
+      >
+        <Icon className="size-3.5" />
+        {label}
+      </Button>
+    );
+  }
+
+  const href = type === "phone" ? `tel:${text.replace(/[^\d+]/g, "")}` : `mailto:${text}`;
+
+  return (
+    <a
+      href={href}
+      onClick={(event) => event.stopPropagation()}
+      className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[#cdd8e7] bg-white px-2 text-[11px] font-bold text-[#1f4f9f] transition hover:border-[#9bb8eb] hover:bg-[#f8fbff]"
+      aria-label={`${rowContactActionAria(type)} ${text}`}
+    >
+      <Icon className="size-3.5 shrink-0 text-[#64748b]" />
+      {label}
+    </a>
   );
 }
 
@@ -646,6 +824,14 @@ function emptyValueFormatter(params: ValueFormatterParams<ContactRow>) {
   return String(params.value ?? "").trim() || "-";
 }
 
+function displayContactValue(value: string) {
+  return value.trim() || "-";
+}
+
+function rowContactActionAria(type: "phone" | "email") {
+  return type === "phone" ? "전화 걸기" : "메일 보내기";
+}
+
 function toDraft(contact: ContactRow): ContactDraft {
   return {
     id: contact.id,
@@ -667,11 +853,20 @@ function formatDateTime(value: unknown) {
   if (Number.isNaN(date.getTime())) {
     return String(value);
   }
-  return new Intl.DateTimeFormat("ko-KR", {
+
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Seoul",
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
-  }).format(date);
+    hourCycle: "h23",
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  const hour = Number(values.hour ?? "0");
+  const displayHour = hour % 12 || 12;
+  const period = hour < 12 ? "오전" : "오후";
+
+  return `${values.year}. ${values.month}. ${values.day}. ${period} ${String(displayHour).padStart(2, "0")}:${values.minute}`;
 }

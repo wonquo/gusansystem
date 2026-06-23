@@ -100,13 +100,6 @@ function formatMonth(date: Date) {
   }).format(date);
 }
 
-function formatShortMonth(date: Date) {
-  return new Intl.DateTimeFormat("ko-KR", {
-    year: "numeric",
-    month: "long",
-  }).format(date);
-}
-
 function formatDateLabel(value: string) {
   if (!value) {
     return "";
@@ -351,7 +344,6 @@ export function CompanyCalendar({
   const [visibleMonth, setVisibleMonth] = useState(
     () => new Date(new Date().getFullYear(), new Date().getMonth(), 1),
   );
-  const [selectedDate, setSelectedDate] = useState(todayValue);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isCategoryManagerOpen, setIsCategoryManagerOpen] = useState(false);
   const [form, setForm] = useState<CalendarForm>(() => createEmptyForm());
@@ -368,7 +360,6 @@ export function CompanyCalendar({
   const [isPending, startTransition] = useTransition();
 
   const monthCells = useMemo(() => buildMonthCells(visibleMonth), [visibleMonth]);
-  const miniMonthCells = useMemo(() => buildMonthCells(visibleMonth), [visibleMonth]);
   const categoryLabels = useMemo(
     () => categoryOptions.map((category) => category.label),
     [categoryOptions],
@@ -531,7 +522,6 @@ export function CompanyCalendar({
   }
 
   function openEventForm(dateValue: string) {
-    setSelectedDate(dateValue);
     setEditingEventId(null);
     setForm((current) => ({
       ...createEmptyForm(dateValue),
@@ -697,7 +687,6 @@ export function CompanyCalendar({
   }
 
   function openEventEditor(event: CalendarEventRow) {
-    setSelectedDate(event.startDate || event.eventDate);
     setEditingEventId(event.id);
     setForm(createFormFromEvent(event));
     setAttendeeQuery("");
@@ -773,7 +762,6 @@ export function CompanyCalendar({
           `${a.startDate}T${a.startTime}`.localeCompare(`${b.startDate}T${b.startTime}`),
         );
       });
-      setSelectedDate(data.event.startDate);
       setForm((current) => ({
         ...createEmptyForm(current.startDate),
         category: current.category,
@@ -856,7 +844,6 @@ export function CompanyCalendar({
                   onClick={() => {
                     const current = new Date();
                     setVisibleMonth(new Date(current.getFullYear(), current.getMonth(), 1));
-                    setSelectedDate(todayValue);
                   }}
                 >
                   오늘
@@ -1034,54 +1021,6 @@ export function CompanyCalendar({
 
           <aside className="border-t border-[#eef1f5] bg-[#fcfcfd] px-4 py-5 lg:border-l lg:border-t-0">
             <section>
-              <div className="mb-4 flex items-center justify-between">
-                <h2 className="text-base font-bold text-[#111827]">{formatShortMonth(visibleMonth)}</h2>
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="size-7 text-[#2f70dc] hover:bg-[#eef5ff] hover:text-[#1d5fc2]"
-                    aria-label="미니 캘린더 이전 달"
-                    onClick={() => changeMonth(-1)}
-                  >
-                    <ChevronLeft className="size-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="size-7 text-[#2f70dc] hover:bg-[#eef5ff] hover:text-[#1d5fc2]"
-                    aria-label="미니 캘린더 다음 달"
-                    onClick={() => changeMonth(1)}
-                  >
-                    <ChevronRight className="size-4" />
-                  </Button>
-                </div>
-              </div>
-              <div className="grid grid-cols-7 gap-y-2.5 text-center text-xs">
-                {["일", "월", "화", "수", "목", "금", "토"].map((day) => (
-                  <span className="font-semibold text-[#7c8493]" key={day}>
-                    {day}
-                  </span>
-                ))}
-                {miniMonthCells.map((cell) => (
-                  <button
-                    className={cn(
-                      "mx-auto grid size-7 place-items-center rounded-full text-xs font-semibold text-[#2d3340]",
-                      !cell.isCurrentMonth && "text-[#b8bec8]",
-                      cell.dateValue === selectedDate && "bg-[#2f70dc] text-white",
-                    )}
-                    key={`mini-${cell.dateValue}`}
-                    aria-label={`미니 캘린더 ${cell.dateValue}`}
-                    onClick={() => openEventForm(cell.dateValue)}
-                    type="button"
-                  >
-                    {cell.date.getDate()}
-                  </button>
-                ))}
-              </div>
-            </section>
-
-            <section className="mt-8 border-t border-[#eef1f5] pt-6">
               <div className="mb-4 flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
                   <h2 className="text-base font-bold text-[#111827]">캘린더</h2>

@@ -151,10 +151,12 @@ export function WorkDiaryGrid({
   initialMonth: string;
 }) {
   const todayText = useMemo(() => formatDateInputValue(new Date()), []);
+  const todayMonth = todayText.slice(0, 7);
   const [rows, setRows] = useState(() => toGridRows(initialRows, initialWorkTypes));
   const rowsRef = useRef(rows);
   const gridApiRef = useRef<GridApi<WorkDiaryGridRow> | null>(null);
   const shouldSelectPreferredRowRef = useRef(false);
+  const shouldFocusTodayPrimaryWorkRef = useRef(false);
   const [destinations, setDestinations] = useState(initialDestinations);
   const [workTypes, setWorkTypes] = useState(initialWorkTypes);
   const [month, setMonth] = useState(initialMonth);
@@ -176,6 +178,13 @@ export function WorkDiaryGrid({
   }, [rows]);
 
   useLayoutEffect(() => {
+    if (shouldFocusTodayPrimaryWorkRef.current) {
+      shouldFocusTodayPrimaryWorkRef.current = false;
+      shouldSelectPreferredRowRef.current = false;
+      focusTodayPrimaryWorkCell(gridApiRef.current, rows, todayText);
+      return;
+    }
+
     if (!shouldSelectPreferredRowRef.current) return;
 
     shouldSelectPreferredRowRef.current = false;
@@ -601,8 +610,19 @@ export function WorkDiaryGrid({
     reloadRows(nextMonth, selectedUserId);
   }
 
+  function focusTodayPrimaryWork() {
+    if (month !== todayMonth) {
+      shouldFocusTodayPrimaryWorkRef.current = true;
+      setMonth(todayMonth);
+      reloadRows(todayMonth, selectedUserId);
+      return;
+    }
+
+    focusTodayPrimaryWorkCell(gridApiRef.current, rows, todayText);
+  }
+
   return (
-    <div className="crm-erp-surface mx-auto flex h-[calc(100vh-5.5rem)] max-w-[1840px] flex-col gap-3 overflow-hidden">
+    <div className="crm-erp-surface mx-auto flex h-[calc(100vh-5.5rem)] max-w-[1840px] flex-col gap-3 overflow-hidden max-lg:h-[calc(100dvh-5.5rem)]">
       <div className="hidden md:block">
         <div>
           <h1 className="text-base font-semibold tracking-tight text-[#0d1b3d]">업무일지</h1>
@@ -613,26 +633,26 @@ export function WorkDiaryGrid({
         <div
           className={
             isAdmin
-              ? "grid gap-px bg-[#edf1f6] p-px lg:grid-cols-[88px_minmax(230px,280px)_72px_minmax(170px,220px)_auto]"
-              : "grid gap-px bg-[#edf1f6] p-px lg:grid-cols-[88px_minmax(230px,280px)_auto]"
+              ? "grid gap-px bg-[#edf1f6] p-px lg:grid-cols-[88px_minmax(230px,280px)_72px_minmax(170px,220px)_minmax(0,1fr)]"
+              : "grid gap-px bg-[#edf1f6] p-px lg:grid-cols-[88px_minmax(230px,280px)_minmax(0,1fr)]"
           }
         >
           <div className="flex items-center bg-[#f2f5f9] px-3 py-2 text-[11px] font-semibold whitespace-nowrap text-[#69758a]">
             기준월
           </div>
-          <div className="grid min-w-0 grid-cols-[1.75rem_minmax(0,1fr)_1.75rem] items-center gap-2 bg-white px-2 py-1.5">
+          <div className="flex min-w-0 items-center gap-2 bg-white px-2 py-1.5">
             <Button
               type="button"
               variant="outline"
               size="icon-sm"
-              className="size-7"
+              className="size-7 shrink-0"
               aria-label="전월"
               onClick={() => changeMonth(-1)}
               disabled={isPending}
             >
               <ChevronLeft className="size-4" />
             </Button>
-            <div className="relative min-w-0">
+            <div className="relative min-w-0 flex-1">
               <CalendarDays className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-[#7c8aa0]" />
               <Input
                 type="month"
@@ -641,7 +661,7 @@ export function WorkDiaryGrid({
                   setMonth(event.target.value);
                   reloadRows(event.target.value, selectedUserId);
                 }}
-                className="work-diary-month-input h-8 border-[#d8e0ea] bg-white pr-8 pl-7 text-sm focus-visible:border-[#2f70dc] focus-visible:ring-[#2f70dc]/20"
+                className="work-diary-month-input h-8 min-w-0 border-[#d8e0ea] bg-white pr-7 pl-7 text-sm focus-visible:border-[#2f70dc] focus-visible:ring-[#2f70dc]/20"
                 disabled={isPending}
               />
             </div>
@@ -649,7 +669,7 @@ export function WorkDiaryGrid({
               type="button"
               variant="outline"
               size="icon-sm"
-              className="size-7"
+              className="size-7 shrink-0"
               aria-label="다음월"
               onClick={() => changeMonth(1)}
               disabled={isPending}
@@ -685,7 +705,7 @@ export function WorkDiaryGrid({
               </div>
             </>
           ) : null}
-          <div className="flex flex-col gap-2 bg-[#f8fafc] p-2 lg:min-w-[620px] lg:flex-row lg:items-center lg:justify-end">
+          <div className="flex min-w-0 flex-col gap-2 bg-[#f8fafc] p-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
             <Button
               type="button"
               variant="outline"
@@ -710,6 +730,10 @@ export function WorkDiaryGrid({
                 업무구분 관리
               </Button>
             ) : null}
+            <Button type="button" variant="outline" size="sm" onClick={focusTodayPrimaryWork} disabled={isPending}>
+              <CalendarDays className="size-3.5" />
+              오늘
+            </Button>
             <Button type="button" variant="outline" size="sm" onClick={() => reloadRows()} disabled={isPending}>
               <RefreshCw className="size-3.5" />
               새로고침
@@ -1709,11 +1733,46 @@ function selectPreferredRow(
 ) {
   if (!api || rows.length === 0) return;
 
-  const preferredIndex = Math.max(0, rows.findIndex((row) => row.workDate === todayText));
+  const preferredIndex = getDisplayedIndexByWorkDate(api, todayText) ?? 0;
   window.requestAnimationFrame(() => {
     api.ensureIndexVisible(preferredIndex, "middle");
     api.getDisplayedRowAtIndex(preferredIndex)?.setSelected(true);
   });
+}
+
+function focusTodayPrimaryWorkCell(
+  api: GridApi<WorkDiaryGridRow> | null,
+  rows: WorkDiaryGridRow[],
+  todayText: string,
+) {
+  if (!api || rows.length === 0) return;
+
+  const todayIndex = getDisplayedIndexByWorkDate(api, todayText);
+  if (todayIndex === null) return;
+
+  window.requestAnimationFrame(() => {
+    api.stopEditing();
+    api.ensureIndexVisible(todayIndex, "middle");
+    api.ensureColumnVisible("primaryWork");
+    api.getDisplayedRowAtIndex(todayIndex)?.setSelected(true);
+    api.setFocusedCell(todayIndex, "primaryWork");
+
+    window.requestAnimationFrame(() => {
+      api.startEditingCell({
+        rowIndex: todayIndex,
+        colKey: "primaryWork",
+      });
+    });
+  });
+}
+
+function getDisplayedIndexByWorkDate(api: GridApi<WorkDiaryGridRow>, workDate: string) {
+  let rowIndex: number | null = null;
+  api.forEachNodeAfterFilterAndSort((node) => {
+    if (rowIndex !== null || node.data?.workDate !== workDate) return;
+    rowIndex = node.rowIndex ?? null;
+  });
+  return rowIndex;
 }
 
 function toSavePayload(row: WorkDiaryGridRow) {
