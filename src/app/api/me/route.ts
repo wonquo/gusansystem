@@ -4,6 +4,7 @@ import { z } from "zod";
 import { getDb, hasDatabaseUrl } from "@/db";
 import { appUsers } from "@/db/schema";
 import { getCurrentAppUser, hashPassword, serializeUser, verifyPassword } from "@/lib/auth";
+import { getSafeErrorMessage, isUniqueViolation } from "@/lib/db-errors";
 import { normalizeProfileImageUrl } from "@/lib/profile-image";
 
 const profileUpdateSchema = z
@@ -86,18 +87,10 @@ export async function PATCH(request: Request) {
     const message =
       error instanceof z.ZodError
         ? (error.issues[0]?.message ?? "입력값을 확인해 주세요.")
-        : error instanceof Error
-          ? error.message
-          : "Invalid request";
-    const isDuplicate =
-      typeof error === "object" &&
-      error !== null &&
-      "message" in error &&
-      String(error.message).includes("duplicate key");
+        : isUniqueViolation(error, ["app_users_email_idx"])
+          ? "이미 사용 중인 이메일입니다."
+          : getSafeErrorMessage(error, "프로필을 수정하지 못했습니다.");
 
-    return NextResponse.json(
-      { error: isDuplicate ? "이미 사용 중인 이메일입니다." : message },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: message }, { status: 400 });
   }
 }

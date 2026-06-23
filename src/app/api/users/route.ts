@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
+import { eq, or } from "drizzle-orm";
 import { z } from "zod";
 import { getDb, hasDatabaseUrl } from "@/db";
 import { appUsers, employees } from "@/db/schema";
@@ -9,6 +9,7 @@ import {
   hashPassword,
   serializeUser,
 } from "@/lib/auth";
+import { getSafeErrorMessage, isUniqueViolation } from "@/lib/db-errors";
 
 const userCreateSchema = z
   .object({
@@ -54,6 +55,17 @@ export async function POST(request: Request) {
     }
 
     const db = getDb();
+    const existingUser = await db.query.appUsers.findFirst({
+      where: or(eq(appUsers.loginId, body.loginId), eq(appUsers.email, body.email)),
+    });
+
+    if (existingUser) {
+      return NextResponse.json(
+        { error: getDuplicateUserMessage(existingUser, body) },
+        { status: 400 },
+      );
+    }
+
     const [created] = await db
       .insert(appUsers)
       .values({
@@ -99,23 +111,37 @@ export async function POST(request: Request) {
     const message =
       error instanceof z.ZodError
         ? (error.issues[0]?.message ?? "입력값을 확인해 주세요.")
-        : error instanceof Error
-          ? error.message
-          : "Invalid request";
-    const isDuplicate =
-      typeof error === "object" &&
-      error !== null &&
-      "message" in error &&
-      String(error.message).includes("duplicate key");
+        : isUniqueViolation(error, ["app_users_login_id_idx", "app_users_email_idx"])
+          ? "이미 사용 중인 로그인 ID 또는 이메일입니다."
+          : getSafeErrorMessage(error, "사용자를 추가하지 못했습니다.");
 
-    return NextResponse.json(
-      { error: isDuplicate ? "이미 사용 중인 로그인 ID 또는 이메일입니다." : message },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: message }, { status: 400 });
   }
 }
 
 function normalizeEmployeeCode(value: string | undefined) {
   const code = value?.trim();
   return code ? code : null;
+}
+
+function getDuplicateUserMessage(
+  user: Pick<typeof appUsers.$inferSelect, "loginId" | "email">,
+  input: { loginId?: string; email?: string },
+) {
+  const isLoginIdDuplicate = user.loginId === input.loginId;
+  const isEmailDuplicate = user.email === input.email;
+
+  if (isLoginIdDuplicate && isEmailDuplicate) {
+    return "이미 사용 중인 로그인 ID와 이메일입니다.";
+  }
+
+  if (isLoginIdDuplicate) {
+    return "이미 사용 중인 로그인 ID입니다.";
+  }
+
+  if (isEmailDuplicate) {
+    return "이미 사용 중인 이메일입니다.";
+  }
+
+  return "이미 사용 중인 로그인 ID 또는 이메일입니다.";
 }

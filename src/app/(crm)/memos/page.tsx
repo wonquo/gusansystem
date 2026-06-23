@@ -10,7 +10,7 @@ export default async function MemosPage() {
   }
 
   const [rows, canCreate, canUpdate, canDelete] = await Promise.all([
-    listMemos(),
+    listMemos(null, user.id),
     canAccessMenu(user.role, "memos", "create"),
     canAccessMenu(user.role, "memos", "update"),
     canAccessMenu(user.role, "memos", "delete"),

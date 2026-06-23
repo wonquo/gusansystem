@@ -28,7 +28,7 @@ export async function GET(request: Request) {
     if (guard.response) return guard.response;
 
     const { searchParams } = new URL(request.url);
-    return NextResponse.json({ rows: await listMemos(searchParams.get("query")) });
+    return NextResponse.json({ rows: await listMemos(searchParams.get("query"), guard.user.id) });
   } catch (error) {
     return jsonError(error, "메모를 조회하지 못했습니다.");
   }
@@ -54,7 +54,7 @@ export async function PATCH(request: Request) {
     if (guard.response) return guard.response;
 
     const input = memoSchema.required({ id: true }).parse(await request.json());
-    const memo = await updateMemo(input.id, input);
+    const memo = await updateMemo(input.id, input, guard.user.id);
 
     return NextResponse.json({ memo });
   } catch (error) {
@@ -73,7 +73,7 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: "메모 ID가 필요합니다." }, { status: 400 });
     }
 
-    await deleteMemo(id);
+    await deleteMemo(id, guard.user.id);
     return NextResponse.json({ ok: true });
   } catch (error) {
     return jsonError(error, "메모를 삭제하지 못했습니다.");

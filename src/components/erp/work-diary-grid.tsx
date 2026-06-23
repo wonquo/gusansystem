@@ -24,7 +24,6 @@ import {
   type GridApi,
   type ICellRendererParams,
   type RowClassParams,
-  type SelectionChangedEvent,
   type SuppressKeyboardEventParams,
   type ValueFormatterParams,
 } from "ag-grid-community";
@@ -83,7 +82,7 @@ type WorkDiaryGridRow = WorkDiaryRow & {
   isDeleted: boolean;
 };
 
-type EditableField = "workTypeId" | "primaryWork" | "secondaryWork" | "destinationId" | "memo";
+type EditableField = "workTypeId" | "primaryWork" | "destinationId" | "memo";
 
 const EMPTY_DESTINATION = "__empty_destination__";
 const EMPTY_WORK_TYPE = "__empty_work_type__";
@@ -158,7 +157,6 @@ export function WorkDiaryGrid({
   const shouldSelectPreferredRowRef = useRef(false);
   const [destinations, setDestinations] = useState(initialDestinations);
   const [workTypes, setWorkTypes] = useState(initialWorkTypes);
-  const [selectedRow, setSelectedRow] = useState<WorkDiaryGridRow | null>(() => findPreferredRow(rows, todayText));
   const [month, setMonth] = useState(initialMonth);
   const [selectedUserId, setSelectedUserId] = useState(currentUser.id);
   const [error, setError] = useState<string | null>(null);
@@ -263,21 +261,9 @@ export function WorkDiaryGrid({
         : []),
       {
         field: "primaryWork",
-        headerName: "업무내용(주)",
-        flex: 1.5,
-        minWidth: 260,
-        editable: (params) => !params.data?.isDeleted,
-        cellClass: "erp-grid-cell work-diary-text-cell",
-        cellEditor: InlineTextCellEditor,
-        suppressKeyboardEvent: suppressInlineTextEditorKeyboardEvent,
-        wrapText: true,
-        autoHeight: true,
-      },
-      {
-        field: "secondaryWork",
-        headerName: "업무내용(부)",
-        flex: 1.2,
-        minWidth: 240,
+        headerName: "업무내용",
+        flex: 2.4,
+        minWidth: 360,
         editable: (params) => !params.data?.isDeleted,
         cellClass: "erp-grid-cell work-diary-text-cell",
         cellEditor: InlineTextCellEditor,
@@ -338,14 +324,13 @@ export function WorkDiaryGrid({
           const nextRows = toGridRows(body.rows ?? [], workTypes);
           shouldSelectPreferredRowRef.current = true;
           setRows(nextRows);
-          setSelectedRow(findPreferredRow(nextRows, todayText));
           setNotice(null);
         } catch (fetchError) {
           setError(fetchError instanceof Error ? fetchError.message : "업무일지 조회에 실패했습니다.");
         }
       });
     },
-    [isAdmin, month, selectedUserId, todayText, workTypes],
+    [isAdmin, month, selectedUserId, workTypes],
   );
 
   const reloadDestinations = useCallback(() => {
@@ -441,7 +426,6 @@ export function WorkDiaryGrid({
       } catch (saveError) {
         setRows(previousRows);
         rowsRef.current = previousRows;
-        setSelectedRow(previousRows[0] ?? null);
         setError(saveError instanceof Error ? saveError.message : "업무일지 저장에 실패했습니다.");
       }
     });
@@ -501,7 +485,6 @@ export function WorkDiaryGrid({
         item.clientId === row.clientId ? { ...item, ...nextRow } : item,
       ),
     );
-    setSelectedRow(nextRow);
     persistRow(nextRow);
   }
 
@@ -536,7 +519,6 @@ export function WorkDiaryGrid({
         workTypes,
       });
       setRows((current) => current.map((item) => (item.clientId === row.clientId ? nextRow : item)));
-      setSelectedRow(nextRow);
       persistRow(nextRow);
       return;
     }
@@ -601,7 +583,6 @@ export function WorkDiaryGrid({
 
     setRows(nextRows);
     rowsRef.current = nextRows;
-    setSelectedRow(nextRows[focusedCell.rowIndex] ?? null);
     persistPastedRows(previousRows, nextRows);
   }
 
@@ -619,50 +600,10 @@ export function WorkDiaryGrid({
     event.clipboardData.setData("text/plain", getClipboardCellText(row, field, destinationNameById, workTypeNameById));
   }
 
-  function onSelectionChanged(event: SelectionChangedEvent<WorkDiaryGridRow>) {
-    setSelectedRow(event.api.getSelectedRows()[0] ?? null);
-  }
-
   function changeMonth(delta: -1 | 1) {
     const nextMonth = shiftMonth(month, delta);
     setMonth(nextMonth);
     reloadRows(nextMonth, selectedUserId);
-  }
-
-  function deleteSelectedRow() {
-    if (!selectedRow) {
-      setNotice("삭제할 행을 선택해 주세요.");
-      return;
-    }
-
-    if (selectedRow.isPlaceholder || selectedRow.rowState === "new") {
-      setRows((current) =>
-        current.map((row) =>
-          row.clientId === selectedRow.clientId ? resetPlaceholderRow(row, defaultWorkType) : row,
-        ),
-      );
-      setNotice(null);
-      return;
-    }
-
-    startTransition(async () => {
-      try {
-        setError(null);
-        const response = await fetch("/api/work-diaries", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ deleted: [selectedRow.id] }),
-        });
-        const body = await response.json();
-        if (!response.ok) {
-          throw new Error(body.error ?? "업무일지 삭제에 실패했습니다.");
-        }
-        setNotice("업무일지를 삭제했습니다.");
-        reloadRows(month, selectedUserId);
-      } catch (deleteError) {
-        setError(deleteError instanceof Error ? deleteError.message : "업무일지 삭제에 실패했습니다.");
-      }
-    });
   }
 
   return (
@@ -749,10 +690,6 @@ export function WorkDiaryGrid({
             )}
           </div>
           <div className="flex flex-col gap-2 bg-[#f8fafc] p-2 lg:min-w-[620px] lg:flex-row lg:items-center lg:justify-end">
-            <Button type="button" variant="outline" size="sm" onClick={deleteSelectedRow} disabled={isPending}>
-              <Trash2 className="size-3.5" />
-              행 삭제
-            </Button>
             <Button
               type="button"
               variant="outline"
@@ -845,7 +782,6 @@ export function WorkDiaryGrid({
                 event.api.onRowHeightChanged();
               }
             }}
-            onSelectionChanged={onSelectionChanged}
             getRowClass={(params: RowClassParams<WorkDiaryGridRow>) => {
               const classes = [];
               if (params.data?.workDate === todayText) classes.push("work-diary-row-today");
@@ -1549,11 +1485,11 @@ function isPrintableEditorStartKey(eventKey: string | null): eventKey is string 
 }
 
 function isEditableField(field: string | undefined): field is EditableField {
-  return field === "workTypeId" || field === "primaryWork" || field === "secondaryWork" || field === "destinationId" || field === "memo";
+  return field === "workTypeId" || field === "primaryWork" || field === "destinationId" || field === "memo";
 }
 
 function isInlineTextField(field: string | undefined) {
-  return field === "primaryWork" || field === "secondaryWork" || field === "memo";
+  return field === "primaryWork" || field === "memo";
 }
 
 function isFormEditingTarget(target: EventTarget | null) {
@@ -1730,7 +1666,6 @@ function hasPersistedCellChange(previousRow: WorkDiaryGridRow, nextRow: WorkDiar
   return (
     previousRow.workTypeId !== nextRow.workTypeId ||
     previousRow.primaryWork !== nextRow.primaryWork ||
-    previousRow.secondaryWork !== nextRow.secondaryWork ||
     previousRow.destinationId !== nextRow.destinationId ||
     previousRow.memo !== nextRow.memo
   );
@@ -1761,14 +1696,12 @@ function toGridRows(rows: WorkDiaryRow[], workTypes: WorkDiaryTypeRow[]): WorkDi
     workTypeCode: row.workTypeCode ?? defaultWorkType?.code ?? null,
     workTypeLabel: row.workTypeLabel ?? defaultWorkType?.label ?? null,
     workTypeColor: row.workTypeColor ?? defaultWorkType?.color ?? null,
+    primaryWork: mergeWorkContent(row.primaryWork, row.secondaryWork),
+    secondaryWork: "",
     clientId: row.id,
     rowState: "clean",
     isDeleted: false,
   }));
-}
-
-function findPreferredRow(rows: WorkDiaryGridRow[], todayText: string) {
-  return rows.find((row) => row.workDate === todayText) ?? rows[0] ?? null;
 }
 
 function selectPreferredRow(
@@ -1785,28 +1718,6 @@ function selectPreferredRow(
   });
 }
 
-function resetPlaceholderRow(
-  row: WorkDiaryGridRow,
-  defaultWorkType: WorkDiaryTypeRow | null,
-): WorkDiaryGridRow {
-  return {
-    ...row,
-    primaryWork: "",
-    secondaryWork: "",
-    workTypeId: defaultWorkType?.id ?? null,
-    workTypeCode: defaultWorkType?.code ?? null,
-    workTypeLabel: defaultWorkType?.label ?? null,
-    workTypeColor: defaultWorkType?.color ?? null,
-    workType: defaultWorkType?.label ?? "업무",
-    destinationId: null,
-    destinationCode: null,
-    destinationLabel: null,
-    memo: "",
-    rowState: "clean",
-    isDeleted: false,
-  };
-}
-
 function toSavePayload(row: WorkDiaryGridRow) {
   return {
     id: row.id,
@@ -1815,7 +1726,7 @@ function toSavePayload(row: WorkDiaryGridRow) {
     workType: row.workType,
     workTypeId: row.workTypeId === EMPTY_WORK_TYPE ? null : row.workTypeId,
     primaryWork: row.primaryWork,
-    secondaryWork: row.secondaryWork,
+    secondaryWork: "",
     destinationId: row.destinationId === EMPTY_DESTINATION ? null : row.destinationId,
     memo: row.memo,
     sortOrder: row.sortOrder,
@@ -1823,13 +1734,12 @@ function toSavePayload(row: WorkDiaryGridRow) {
 }
 
 function rowHasContent(
-  row: Pick<WorkDiaryGridRow, "workTypeId" | "primaryWork" | "secondaryWork" | "destinationId" | "memo">,
+  row: Pick<WorkDiaryGridRow, "workTypeId" | "primaryWork" | "destinationId" | "memo">,
   defaultWorkTypeId: string | null,
 ) {
   return Boolean(
     (row.workTypeId && row.workTypeId !== defaultWorkTypeId && row.workTypeId !== EMPTY_WORK_TYPE) ||
       String(row.primaryWork ?? "").trim() ||
-      String(row.secondaryWork ?? "").trim() ||
       String(row.memo ?? "").trim() ||
       (row.destinationId && row.destinationId !== EMPTY_DESTINATION),
   );
@@ -1838,8 +1748,15 @@ function rowHasContent(
 function normalizeCellValue(field: string, value: unknown) {
   if (field === "destinationId" && (value === EMPTY_DESTINATION || String(value ?? "").trim() === "")) return null;
   if (field === "workTypeId" && (value === EMPTY_WORK_TYPE || String(value ?? "").trim() === "")) return null;
-  if (field === "primaryWork" || field === "secondaryWork" || field === "memo") return String(value ?? "");
+  if (field === "primaryWork" || field === "memo") return String(value ?? "");
   return value;
+}
+
+function mergeWorkContent(primaryWork: string | null | undefined, secondaryWork: string | null | undefined) {
+  return [primaryWork, secondaryWork]
+    .map((value) => String(value ?? "").trim())
+    .filter(Boolean)
+    .join("\n");
 }
 
 function formatWorkDate(value: unknown) {

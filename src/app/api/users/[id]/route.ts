@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
+import { and, eq, ne, or } from "drizzle-orm";
 import { z } from "zod";
 import { getDb, hasDatabaseUrl } from "@/db";
 import {
@@ -15,6 +15,7 @@ import {
   notices,
 } from "@/db/schema";
 import { canManageUsers, getCurrentAppUser, hashPassword, serializeUser } from "@/lib/auth";
+import { getSafeErrorMessage, isUniqueViolation } from "@/lib/db-errors";
 import { normalizeProfileImageUrl } from "@/lib/profile-image";
 
 const userUpdateSchema = z
@@ -67,6 +68,14 @@ export async function PATCH(
     }
 
     const db = getDb();
+    const duplicateUser = await findDuplicateUser(db, id, body.loginId, body.email);
+    if (duplicateUser) {
+      return NextResponse.json(
+        { error: getDuplicateUserMessage(duplicateUser, body) },
+        { status: 400 },
+      );
+    }
+
     const [updated] = await db
       .update(appUsers)
       .set({ ...patch, updatedAt: new Date() })
@@ -148,25 +157,66 @@ export async function PATCH(
     const message =
       error instanceof z.ZodError
         ? (error.issues[0]?.message ?? "입력값을 확인해 주세요.")
-        : error instanceof Error
-          ? error.message
-          : "Invalid request";
-    const isDuplicate =
-      typeof error === "object" &&
-      error !== null &&
-      "message" in error &&
-      String(error.message).includes("duplicate key");
+        : isUniqueViolation(error, ["app_users_login_id_idx", "app_users_email_idx"])
+          ? "이미 사용 중인 로그인 ID 또는 이메일입니다."
+          : getSafeErrorMessage(error, "사용자를 수정하지 못했습니다.");
 
-    return NextResponse.json(
-      { error: isDuplicate ? "이미 사용 중인 로그인 ID 또는 이메일입니다." : message },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: message }, { status: 400 });
   }
 }
 
 function normalizeEmployeeCode(value: string | undefined) {
   const code = value?.trim();
   return code ? code : null;
+}
+
+function findDuplicateUser(
+  db: ReturnType<typeof getDb>,
+  id: string,
+  loginId: string | undefined,
+  email: string | undefined,
+) {
+  if (loginId && email) {
+    return db.query.appUsers.findFirst({
+      where: and(ne(appUsers.id, id), or(eq(appUsers.loginId, loginId), eq(appUsers.email, email))),
+    });
+  }
+
+  if (loginId) {
+    return db.query.appUsers.findFirst({
+      where: and(ne(appUsers.id, id), eq(appUsers.loginId, loginId)),
+    });
+  }
+
+  if (email) {
+    return db.query.appUsers.findFirst({
+      where: and(ne(appUsers.id, id), eq(appUsers.email, email)),
+    });
+  }
+
+  return null;
+}
+
+function getDuplicateUserMessage(
+  user: Pick<typeof appUsers.$inferSelect, "loginId" | "email">,
+  input: { loginId?: string; email?: string },
+) {
+  const isLoginIdDuplicate = input.loginId ? user.loginId === input.loginId : false;
+  const isEmailDuplicate = input.email ? user.email === input.email : false;
+
+  if (isLoginIdDuplicate && isEmailDuplicate) {
+    return "이미 사용 중인 로그인 ID와 이메일입니다.";
+  }
+
+  if (isLoginIdDuplicate) {
+    return "이미 사용 중인 로그인 ID입니다.";
+  }
+
+  if (isEmailDuplicate) {
+    return "이미 사용 중인 이메일입니다.";
+  }
+
+  return "이미 사용 중인 로그인 ID 또는 이메일입니다.";
 }
 
 export async function DELETE(

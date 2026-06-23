@@ -24,6 +24,7 @@ export function LoginForm() {
         </div>
 
         <form
+          key={state.formKey ?? "initial-login-form"}
           action={formAction}
           className="rounded-lg border border-[#dbe3ed] bg-white p-6 shadow-[0_22px_60px_rgba(16,32,51,0.1)]"
         >
@@ -42,6 +43,7 @@ export function LoginForm() {
               <Input
                 id="loginId"
                 name="loginId"
+                defaultValue={state.loginId ?? ""}
                 autoComplete="username"
                 placeholder="아이디"
                 className="h-11 border-[#dbe3ed] bg-[#f8fafc] px-3 text-[#102033] shadow-none placeholder:text-[#9aa6b5] focus-visible:border-[#2f70dc] focus-visible:bg-white focus-visible:ring-[#2f70dc]/15"

@@ -1,4 +1,4 @@
-import { desc, eq, ilike, or } from "drizzle-orm";
+import { and, desc, eq, ilike, or } from "drizzle-orm";
 import { getDb, hasDatabaseUrl } from "@/db";
 import { appUsers, memos } from "@/db/schema";
 import type { BoardAttachment, MemoRow } from "@/lib/types";
@@ -9,12 +9,17 @@ export type MemoInput = {
   attachments?: BoardAttachment[];
 };
 
-export async function listMemos(query?: string | null): Promise<MemoRow[]> {
+export async function listMemos(query?: string | null, createdBy?: string): Promise<MemoRow[]> {
   if (!hasDatabaseUrl()) {
     return [];
   }
 
   const keyword = query?.trim();
+  const conditions = [
+    createdBy ? eq(memos.createdBy, createdBy) : undefined,
+    keyword ? or(ilike(memos.title, `%${keyword}%`), ilike(memos.content, `%${keyword}%`)) : undefined,
+  ].filter((condition) => condition !== undefined);
+
   const rows = await getDb()
     .select({
       memo: memos,
@@ -22,17 +27,21 @@ export async function listMemos(query?: string | null): Promise<MemoRow[]> {
     })
     .from(memos)
     .leftJoin(appUsers, eq(memos.createdBy, appUsers.id))
-    .where(keyword ? or(ilike(memos.title, `%${keyword}%`), ilike(memos.content, `%${keyword}%`)) : undefined)
+    .where(conditions.length ? and(...conditions) : undefined)
     .orderBy(desc(memos.updatedAt), desc(memos.createdAt))
     .limit(800);
 
   return rows.map(({ memo, authorName }) => serializeMemo(memo, authorName));
 }
 
-export async function getMemo(id: string): Promise<MemoRow | null> {
+export async function getMemo(id: string, createdBy?: string): Promise<MemoRow | null> {
   if (!hasDatabaseUrl()) {
     return null;
   }
+
+  const conditions = [eq(memos.id, id), createdBy ? eq(memos.createdBy, createdBy) : undefined].filter(
+    (condition) => condition !== undefined,
+  );
 
   const [row] = await getDb()
     .select({
@@ -41,7 +50,7 @@ export async function getMemo(id: string): Promise<MemoRow | null> {
     })
     .from(memos)
     .leftJoin(appUsers, eq(memos.createdBy, appUsers.id))
-    .where(eq(memos.id, id))
+    .where(and(...conditions))
     .limit(1);
 
   return row ? serializeMemo(row.memo, row.authorName) : null;
@@ -58,10 +67,10 @@ export async function createMemo(input: MemoInput, createdBy: string) {
     })
     .returning();
 
-  return getMemo(memo.id);
+  return getMemo(memo.id, createdBy);
 }
 
-export async function updateMemo(id: string, input: MemoInput) {
+export async function updateMemo(id: string, input: MemoInput, createdBy: string) {
   const [memo] = await getDb()
     .update(memos)
     .set({
@@ -70,20 +79,23 @@ export async function updateMemo(id: string, input: MemoInput) {
       attachments: normalizeAttachments(input.attachments),
       updatedAt: new Date(),
     })
-    .where(eq(memos.id, id))
+    .where(and(eq(memos.id, id), eq(memos.createdBy, createdBy)))
     .returning();
 
   if (!memo) {
-    throw new Error("메모를 찾지 못했습니다.");
+    throw new Error("메모를 찾지 못했거나 권한이 없습니다.");
   }
 
-  return getMemo(memo.id);
+  return getMemo(memo.id, createdBy);
 }
 
-export async function deleteMemo(id: string) {
-  const [deleted] = await getDb().delete(memos).where(eq(memos.id, id)).returning({ id: memos.id });
+export async function deleteMemo(id: string, createdBy: string) {
+  const [deleted] = await getDb()
+    .delete(memos)
+    .where(and(eq(memos.id, id), eq(memos.createdBy, createdBy)))
+    .returning({ id: memos.id });
   if (!deleted) {
-    throw new Error("메모를 찾지 못했습니다.");
+    throw new Error("메모를 찾지 못했거나 권한이 없습니다.");
   }
   return deleted;
 }

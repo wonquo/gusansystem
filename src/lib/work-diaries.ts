@@ -179,8 +179,8 @@ export async function listWorkDiaryRows({
     workTypeCode,
     workTypeLabel: (workTypeLabel ?? normalizeText(entry.workType)) || null,
     workTypeColor,
-    primaryWork: entry.primaryWork,
-    secondaryWork: entry.secondaryWork,
+    primaryWork: mergeWorkContent(entry.primaryWork, entry.secondaryWork),
+    secondaryWork: "",
     destinationId: entry.destinationId,
     destinationCode,
     destinationLabel,
@@ -223,8 +223,8 @@ export async function saveWorkDiaryBulk({
       workDate,
       workType: selectedWorkType?.label ?? "업무",
       workTypeId: selectedWorkType?.id ?? null,
-      primaryWork: normalizeText(row.primaryWork),
-      secondaryWork: normalizeText(row.secondaryWork),
+      primaryWork: mergeWorkContent(row.primaryWork, row.secondaryWork),
+      secondaryWork: "",
       destinationId: normalizeNullableId(row.destinationId),
       memo: normalizeText(row.memo),
       sortOrder: normalizeSortOrder(row.sortOrder),
@@ -269,8 +269,8 @@ export async function saveWorkDiaryBulk({
     const patch = {
       workDate,
       ...workTypePatch,
-      primaryWork: normalizeText(row.primaryWork),
-      secondaryWork: normalizeText(row.secondaryWork),
+      primaryWork: mergeWorkContent(row.primaryWork, row.secondaryWork),
+      secondaryWork: "",
       destinationId: normalizeNullableId(row.destinationId),
       memo: normalizeText(row.memo),
       sortOrder: normalizeSortOrder(row.sortOrder),
@@ -562,6 +562,13 @@ function normalizeWorkDate(value: string | undefined) {
 
 function normalizeText(value: unknown) {
   return String(value ?? "").trim();
+}
+
+function mergeWorkContent(primaryWork: unknown, secondaryWork: unknown) {
+  return [primaryWork, secondaryWork]
+    .map(normalizeText)
+    .filter(Boolean)
+    .join("\n");
 }
 
 function normalizeRequiredText(value: unknown, message: string) {
