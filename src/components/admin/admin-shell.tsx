@@ -5,13 +5,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useState, useSyncExternalStore, useTransition } from "react";
 import {
-  Bell,
   BookOpenText,
   CalendarDays,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  CircleHelp,
   ClipboardList,
   FileClock,
   FileText,
@@ -19,7 +17,6 @@ import {
   FolderKanban,
   Home,
   ImageIcon,
-  Inbox,
   KeyRound,
   LogOut,
   Menu,
@@ -27,7 +24,6 @@ import {
   ReceiptText,
   ShieldCheck,
   Settings,
-  Star,
   StickyNote,
   UserCircle,
   UsersRound,
@@ -146,18 +142,6 @@ export function AdminShell({
               <p className="truncate text-sm font-semibold text-[#0d1b3d]">{currentTitle}</p>
             </div>
             <div className="ml-auto flex items-center gap-1 text-[#0d1b3d] md:gap-2">
-              <HeaderIcon label="알림">
-                <Bell className="size-5" />
-              </HeaderIcon>
-              <HeaderIcon label="메일" badge="12">
-                <Inbox className="size-5" />
-              </HeaderIcon>
-              <HeaderIcon label="즐겨찾기">
-                <Star className="size-5" />
-              </HeaderIcon>
-              <HeaderIcon label="도움말">
-                <CircleHelp className="size-5" />
-              </HeaderIcon>
               <AccountMenu user={displayUser} onUserChange={setLocalUser} />
             </div>
           </div>
@@ -329,7 +313,7 @@ function AccountMenu({
         <DropdownMenuTrigger asChild>
           <Button
             variant="ghost"
-            className="ml-1 h-10 gap-2 border-l border-[#e1e7f0] pl-3 pr-2 text-[#0d1b3d] hover:bg-[#eef4fb] sm:ml-2 sm:pl-4"
+            className="ml-1 h-10 gap-2 px-2 text-[#0d1b3d] hover:bg-[#eef4fb] sm:ml-2 sm:px-3"
             aria-label="계정 메뉴 열기"
           >
             <Avatar user={user} className="size-9" />
@@ -513,32 +497,6 @@ function Avatar({
     >
       {user.name.slice(0, 1)}
     </span>
-  );
-}
-
-function HeaderIcon({
-  label,
-  badge,
-  children,
-}: {
-  label: string;
-  badge?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <Button
-      variant="ghost"
-      size="icon"
-      className="relative text-[#0d1b3d] hover:bg-[#eef4fb]"
-      aria-label={label}
-    >
-      {children}
-      {badge ? (
-        <span className="absolute right-0 top-1 grid min-w-4 place-items-center rounded-full bg-[#1f6fff] px-1 text-[10px] font-semibold leading-4 text-white">
-          {badge}
-        </span>
-      ) : null}
-    </Button>
   );
 }
 
