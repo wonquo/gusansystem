@@ -380,30 +380,6 @@ export function UserManagementTable({
       <section className="min-w-0 space-y-3">
         <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
           <h1 className="hidden text-base font-semibold tracking-tight text-[#0d1b3d] md:block">사용자 목록</h1>
-          <div className="flex items-center gap-2">
-            <Badge variant="outline" className="hidden h-7 border-[#cfd9e7] bg-white px-2.5 text-xs md:inline-flex">
-              {filteredUsers.length.toLocaleString()}건
-            </Badge>
-            <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-              <DialogTrigger asChild>
-                <Button type="button" size="sm">
-                  <Plus className="size-3.5" />
-                  사용자 추가
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-h-[86vh] overflow-y-auto sm:max-w-md">
-                <UserForm
-                  mode="create"
-                  form={createForm}
-                  error={createError}
-                  isSaving={isCreating}
-                  onSubmit={createUser}
-                  onCancel={() => setIsCreateOpen(false)}
-                  onChange={setCreateForm}
-                />
-              </DialogContent>
-            </Dialog>
-          </div>
         </div>
 
         <div className="overflow-hidden rounded-lg border border-[#d8e0ea] bg-white shadow-[0_1px_4px_rgba(15,28,48,0.06)]">
@@ -479,8 +455,33 @@ export function UserManagementTable({
           </div>
         </div>
 
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <Badge variant="outline" className="h-7 border-[#cfd9e7] bg-white px-2.5 text-xs">
+            {filteredUsers.length.toLocaleString()}건
+          </Badge>
+          <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+            <DialogTrigger asChild>
+              <Button type="button" size="sm">
+                <Plus className="size-3.5" />
+                사용자 추가
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-h-[86vh] overflow-y-auto sm:max-w-md">
+              <UserForm
+                mode="create"
+                form={createForm}
+                error={createError}
+                isSaving={isCreating}
+                onSubmit={createUser}
+                onCancel={() => setIsCreateOpen(false)}
+                onChange={setCreateForm}
+              />
+            </DialogContent>
+          </Dialog>
+        </div>
+
         <div className="overflow-hidden rounded-lg border border-[#d8e0ea] bg-white shadow-[0_10px_34px_rgba(15,28,48,0.06)]">
-          <div className="ag-theme-quartz erp-grid h-[calc(100vh-17.5rem)] min-h-[460px] w-full">
+          <div className="ag-theme-quartz erp-grid h-[calc(100vh-20rem)] min-h-[420px] w-full">
             <AgGridReact<AppUserRow>
               rowData={filteredUsers}
               columnDefs={columnDefs}

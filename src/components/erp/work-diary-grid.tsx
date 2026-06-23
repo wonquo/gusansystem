@@ -65,6 +65,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Textarea } from "@/components/ui/textarea";
 import {
   type AppUserRow,
   type WorkDiaryDestinationRow,
@@ -151,7 +152,6 @@ export function WorkDiaryGrid({
   initialMonth: string;
 }) {
   const todayText = useMemo(() => formatDateInputValue(new Date()), []);
-  const todayMonth = todayText.slice(0, 7);
   const [rows, setRows] = useState(() => toGridRows(initialRows, initialWorkTypes));
   const rowsRef = useRef(rows);
   const gridApiRef = useRef<GridApi<WorkDiaryGridRow> | null>(null);
@@ -160,6 +160,7 @@ export function WorkDiaryGrid({
   const [destinations, setDestinations] = useState(initialDestinations);
   const [workTypes, setWorkTypes] = useState(initialWorkTypes);
   const [month, setMonth] = useState(initialMonth);
+  const [selectedDate, setSelectedDate] = useState(() => getInitialSelectedDate(initialMonth, todayText));
   const [selectedUserId, setSelectedUserId] = useState(currentUser.id);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -218,6 +219,12 @@ export function WorkDiaryGrid({
     () => [EMPTY_WORK_TYPE, ...workTypes.filter((item) => item.isActive).map((item) => item.id)],
     [workTypes],
   );
+  const selectedDateRow = useMemo(
+    () => rows.find((row) => row.workDate === selectedDate) ?? null,
+    [rows, selectedDate],
+  );
+  const selectedDateLabel = useMemo(() => formatSelectedDateLabel(selectedDate), [selectedDate]);
+  const selectedDateLabelClass = useMemo(() => getMobileDateLabelClass(selectedDate), [selectedDate]);
 
   const columnDefs = useMemo<ColDef<WorkDiaryGridRow>[]>(
     () => [
@@ -610,15 +617,48 @@ export function WorkDiaryGrid({
     reloadRows(nextMonth, selectedUserId);
   }
 
-  function focusTodayPrimaryWork() {
-    if (month !== todayMonth) {
-      shouldFocusTodayPrimaryWorkRef.current = true;
-      setMonth(todayMonth);
-      reloadRows(todayMonth, selectedUserId);
+  function changeSelectedDate(delta: -1 | 1) {
+    goToSelectedDate(shiftDate(selectedDate, delta));
+  }
+
+  function goToSelectedDate(nextDate: string, nextUserId = selectedUserId) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(nextDate)) return;
+
+    const nextMonth = nextDate.slice(0, 7);
+    setSelectedDate(nextDate);
+    if (nextMonth !== month) {
+      setMonth(nextMonth);
+      reloadRows(nextMonth, nextUserId);
+    }
+  }
+
+  function changeSelectedUser(value: string) {
+    setSelectedUserId(value);
+    reloadRows(selectedDate.slice(0, 7), value);
+  }
+
+  function updateMobileField(field: EditableField, value: string | null) {
+    if (!selectedDateRow) return;
+
+    const nextRow = applyEditedCellValue(selectedDateRow, field, value, {
+      defaultWorkTypeId,
+      destinations,
+      workTypes,
+    });
+    setRows((current) => {
+      const nextRows = current.map((item) => (item.clientId === nextRow.clientId ? nextRow : item));
+      rowsRef.current = nextRows;
+      return nextRows;
+    });
+  }
+
+  function saveMobileWorkDiary() {
+    const row = rowsRef.current.find((item) => item.workDate === selectedDate);
+    if (!row) {
+      setError("선택한 일자의 업무일지를 찾지 못했습니다.");
       return;
     }
-
-    focusTodayPrimaryWorkCell(gridApiRef.current, rows, todayText);
+    persistRow(row);
   }
 
   return (
@@ -629,7 +669,7 @@ export function WorkDiaryGrid({
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-[#d8e0ea] bg-white shadow-[0_1px_4px_rgba(15,28,48,0.06)]">
+      <div className="hidden overflow-hidden rounded-lg border border-[#d8e0ea] bg-white shadow-[0_1px_4px_rgba(15,28,48,0.06)] md:block">
         <div
           className={
             isAdmin
@@ -730,11 +770,76 @@ export function WorkDiaryGrid({
                 업무구분 관리
               </Button>
             ) : null}
-            <Button type="button" variant="outline" size="sm" onClick={focusTodayPrimaryWork} disabled={isPending}>
-              <CalendarDays className="size-3.5" />
-              오늘
-            </Button>
             <Button type="button" variant="outline" size="sm" onClick={() => reloadRows()} disabled={isPending}>
+              <RefreshCw className="size-3.5" />
+              새로고침
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      <div className="overflow-hidden rounded-lg border border-[#d8e0ea] bg-white shadow-[0_1px_4px_rgba(15,28,48,0.06)] md:hidden">
+        <div className="grid gap-px bg-[#edf1f6] p-px">
+          <div className="flex items-center bg-[#f2f5f9] px-3 py-2 text-[11px] font-semibold whitespace-nowrap text-[#69758a]">
+            일자
+          </div>
+          <div className="flex min-w-0 items-center gap-2 bg-white px-2 py-1.5">
+            <Button
+              type="button"
+              variant="outline"
+              size="icon-sm"
+              className="size-8 shrink-0"
+              aria-label="전일"
+              onClick={() => changeSelectedDate(-1)}
+              disabled={isPending}
+            >
+              <ChevronLeft className="size-4" />
+            </Button>
+            <div className="relative min-w-0 flex-1">
+              <CalendarDays className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-[#7c8aa0]" />
+              <Input
+                type="date"
+                value={selectedDate}
+                onChange={(event) => goToSelectedDate(event.target.value)}
+                className="h-9 min-w-0 border-[#d8e0ea] bg-white pr-3 pl-7 text-sm focus-visible:border-[#2f70dc] focus-visible:ring-[#2f70dc]/20"
+                disabled={isPending}
+              />
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon-sm"
+              className="size-8 shrink-0"
+              aria-label="다음일"
+              onClick={() => changeSelectedDate(1)}
+              disabled={isPending}
+            >
+              <ChevronRight className="size-4" />
+            </Button>
+          </div>
+          {isAdmin ? (
+            <>
+              <div className="flex items-center bg-[#f2f5f9] px-3 py-2 text-[11px] font-semibold whitespace-nowrap text-[#69758a]">
+                사용자
+              </div>
+              <div className="bg-white p-2">
+                <Select value={selectedUserId} onValueChange={changeSelectedUser} disabled={isPending}>
+                  <SelectTrigger className="h-9 w-full border-[#d8e0ea] bg-white text-sm focus-visible:border-[#2f70dc] focus-visible:ring-[#2f70dc]/20">
+                    <SelectValue placeholder="사용자 선택" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {users.map((user) => (
+                      <SelectItem key={user.id} value={user.id}>
+                        {user.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </>
+          ) : null}
+          <div className="flex justify-end bg-[#f8fafc] p-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => reloadRows(selectedDate.slice(0, 7), selectedUserId)} disabled={isPending}>
               <RefreshCw className="size-3.5" />
               새로고침
             </Button>
@@ -755,7 +860,7 @@ export function WorkDiaryGrid({
         </Alert>
       ) : null}
 
-      <div className="relative min-h-0 flex-1 overflow-hidden rounded-lg border border-[#d8e0ea] bg-white shadow-[0_10px_34px_rgba(15,28,48,0.06)]">
+      <div className="relative min-h-0 flex-1 overflow-hidden rounded-lg border border-[#d8e0ea] bg-white shadow-[0_10px_34px_rgba(15,28,48,0.06)] max-md:hidden">
         {isPending ? (
           <div className="absolute inset-x-0 top-0 z-10 h-0.5 overflow-hidden bg-[#dbe7fb]">
             <span className="block h-full w-1/3 animate-pulse bg-[#2f70dc]" />
@@ -813,6 +918,111 @@ export function WorkDiaryGrid({
             }}
             overlayNoRowsTemplate='<span class="erp-grid-empty">표시할 업무일지가 없습니다</span>'
           />
+        </div>
+      </div>
+
+      <div className="relative min-h-0 flex-1 overflow-auto rounded-lg border border-[#d8e0ea] bg-white shadow-[0_10px_34px_rgba(15,28,48,0.06)] md:hidden">
+        {isPending ? (
+          <div className="absolute inset-x-0 top-0 z-10 h-0.5 overflow-hidden bg-[#dbe7fb]">
+            <span className="block h-full w-1/3 animate-pulse bg-[#2f70dc]" />
+          </div>
+        ) : null}
+        <div className="flex h-full min-h-[360px] flex-col p-4">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold text-[#69758a]">업무일지</p>
+              <h2 className={`truncate text-base font-semibold ${selectedDateLabelClass}`}>{selectedDateLabel}</h2>
+            </div>
+          </div>
+
+          <div className="grid gap-3">
+            <div className="grid gap-1.5">
+              <label className="text-xs font-semibold text-[#334155]" htmlFor="mobile-work-diary-type">
+                업무구분
+              </label>
+              <Select
+                value={selectedDateRow?.workTypeId ?? EMPTY_WORK_TYPE}
+                onValueChange={(value) => updateMobileField("workTypeId", value)}
+                disabled={isPending || !selectedDateRow}
+              >
+                <SelectTrigger
+                  id="mobile-work-diary-type"
+                  className="h-10 w-full border-[#cbd5e1] bg-white text-sm focus-visible:border-[#2f70dc] focus-visible:ring-[#2f70dc]/20"
+                >
+                  <SelectValue placeholder="업무구분 선택" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={EMPTY_WORK_TYPE}>선택 안 함</SelectItem>
+                  {workTypes.filter((item) => item.isActive).map((workType) => (
+                    <SelectItem key={workType.id} value={workType.id}>
+                      {workType.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid gap-1.5">
+              <label className="text-xs font-semibold text-[#334155]" htmlFor="mobile-work-diary-destination">
+                행선지
+              </label>
+              <Select
+                value={selectedDateRow?.destinationId ?? EMPTY_DESTINATION}
+                onValueChange={(value) => updateMobileField("destinationId", value)}
+                disabled={isPending || !selectedDateRow}
+              >
+                <SelectTrigger
+                  id="mobile-work-diary-destination"
+                  className="h-10 w-full border-[#cbd5e1] bg-white text-sm focus-visible:border-[#2f70dc] focus-visible:ring-[#2f70dc]/20"
+                >
+                  <SelectValue placeholder="행선지 선택" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={EMPTY_DESTINATION}>선택 안 함</SelectItem>
+                  {destinations.filter((item) => item.isActive).map((destination) => (
+                    <SelectItem key={destination.id} value={destination.id}>
+                      {destination.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid gap-1.5">
+              <label className="text-xs font-semibold text-[#334155]" htmlFor="mobile-work-diary-primary-work">
+                오늘업무내용
+              </label>
+              <Textarea
+                id="mobile-work-diary-primary-work"
+                value={selectedDateRow?.primaryWork ?? ""}
+                onChange={(event) => updateMobileField("primaryWork", event.target.value)}
+                placeholder="업무내용을 입력하세요"
+                className="min-h-[150px] resize-y rounded-md border-[#cbd5e1] bg-[#fbfdff] p-3 text-base leading-6 text-[#0f172a] shadow-none focus-visible:border-[#2f70dc] focus-visible:ring-[#2f70dc]/20"
+                disabled={isPending || !selectedDateRow}
+              />
+            </div>
+
+            <div className="grid gap-1.5">
+              <label className="text-xs font-semibold text-[#334155]" htmlFor="mobile-work-diary-memo">
+                비고
+              </label>
+              <Textarea
+                id="mobile-work-diary-memo"
+                value={selectedDateRow?.memo ?? ""}
+                onChange={(event) => updateMobileField("memo", event.target.value)}
+                placeholder="비고를 입력하세요"
+                className="min-h-20 resize-y rounded-md border-[#cbd5e1] bg-white p-3 text-sm leading-5 text-[#0f172a] shadow-none focus-visible:border-[#2f70dc] focus-visible:ring-[#2f70dc]/20"
+                disabled={isPending || !selectedDateRow}
+              />
+            </div>
+          </div>
+
+          <div className="mt-3 flex justify-end">
+            <Button type="button" size="sm" onClick={saveMobileWorkDiary} disabled={isPending || !selectedDateRow}>
+              <Check className="size-3.5" />
+              저장
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -1828,6 +2038,31 @@ function formatDateInputValue(date: Date) {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function getInitialSelectedDate(initialMonth: string, todayText: string) {
+  return todayText.startsWith(`${initialMonth}-`) ? todayText : `${initialMonth}-01`;
+}
+
+function shiftDate(value: string, delta: -1 | 1) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  const current = match ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3])) : new Date();
+  current.setDate(current.getDate() + delta);
+  return formatDateInputValue(current);
+}
+
+function formatSelectedDateLabel(value: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return value;
+
+  return `${Number(match[2])}월 ${Number(match[3])}일 (${weekdayLabel(value)})`;
+}
+
+function getMobileDateLabelClass(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return "text-[#0d1b3d]";
+  if (isHoliday(value) || weekdayLabel(value) === "일") return "text-[#dc2626]";
+  if (weekdayLabel(value) === "토") return "text-[#2563eb]";
+  return "text-[#0d1b3d]";
 }
 
 function weekdayLabel(value: unknown) {

@@ -23,7 +23,6 @@ import {
   Mail,
   Phone,
   Plus,
-  RefreshCw,
   Save,
   Search,
   Trash2,
@@ -310,11 +309,6 @@ export function ContactGrid({
         <div>
           <h1 className="text-base font-semibold tracking-tight text-[#0d1b3d]">연락처</h1>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="outline" className="h-7 w-fit border-[#cfd9e7] bg-white px-2.5 text-xs">
-            {filteredRows.length.toLocaleString()}건
-          </Badge>
-        </div>
       </div>
 
       <div className="overflow-hidden rounded-lg border border-[#d8e0ea] bg-white shadow-[0_1px_4px_rgba(15,28,48,0.06)]">
@@ -343,22 +337,10 @@ export function ContactGrid({
                 className="size-10 shrink-0 md:hidden"
                 onClick={() => reloadRows()}
                 disabled={isPending}
-                aria-label="새로고침"
+                aria-label="조회"
               >
-                <RefreshCw className="size-4" />
+                <Search className="size-4" />
               </Button>
-              {canCreate ? (
-                <Button
-                  type="button"
-                  size="icon"
-                  className="size-10 shrink-0 md:hidden"
-                  onClick={openNewContact}
-                  disabled={isPending}
-                  aria-label="새 연락처"
-                >
-                  <Plus className="size-4" />
-                </Button>
-              ) : null}
             </div>
           </div>
           <div className="hidden flex-col gap-2 bg-[#f8fafc] p-2 md:flex md:flex-row md:items-center md:justify-end">
@@ -370,35 +352,43 @@ export function ContactGrid({
               onClick={() => reloadRows()}
               disabled={isPending}
             >
-              <RefreshCw className="size-3.5" />
-              새로고침
+              <Search className="size-3.5" />
+              조회
             </Button>
-            {canDelete ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="hidden w-full justify-center md:inline-flex md:w-auto"
-                onClick={() => deleteCurrentContact()}
-                disabled={isPending}
-              >
-                <Trash2 className="size-3.5" />
-                삭제
-              </Button>
-            ) : null}
-            {canCreate ? (
-              <Button
-                type="button"
-                size="sm"
-                className="w-full justify-center md:w-auto"
-                onClick={openNewContact}
-                disabled={isPending}
-              >
-                <Plus className="size-3.5" />
-                새 연락처
-              </Button>
-            ) : null}
           </div>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Badge variant="outline" className="h-7 w-fit border-[#cfd9e7] bg-white px-2.5 text-xs">
+          {filteredRows.length.toLocaleString()}건
+        </Badge>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {canDelete ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="hidden justify-center md:inline-flex"
+              onClick={() => deleteCurrentContact()}
+              disabled={isPending}
+            >
+              <Trash2 className="size-3.5" />
+              삭제
+            </Button>
+          ) : null}
+          {canCreate ? (
+            <Button
+              type="button"
+              size="sm"
+              className="justify-center"
+              onClick={openNewContact}
+              disabled={isPending}
+            >
+              <Plus className="size-3.5" />
+              새 연락처
+            </Button>
+          ) : null}
         </div>
       </div>
 

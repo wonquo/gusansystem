@@ -217,7 +217,7 @@ export async function saveWorkDiaryBulk({
   for (const row of created) {
     const workDate = normalizeWorkDate(row.workDate);
     const userId = role === "admin" && row.userId ? row.userId : currentUserId;
-    const selectedWorkType = role === "admin" ? await resolveWorkType(row.workTypeId, defaultWorkType) : defaultWorkType;
+    const selectedWorkType = await resolveWorkType(row.workTypeId, defaultWorkType);
     const values = {
       userId,
       workDate,
@@ -257,18 +257,11 @@ export async function saveWorkDiaryBulk({
     }
 
     const workDate = row.workDate ? normalizeWorkDate(row.workDate) : existing.workDate;
-    const selectedWorkType =
-      role === "admin" ? await resolveWorkType(row.workTypeId ?? existing.workTypeId, defaultWorkType) : null;
-    const workTypePatch =
-      role === "admin"
-        ? {
-            workType: selectedWorkType?.label ?? "업무",
-            workTypeId: selectedWorkType?.id ?? null,
-          }
-        : {};
+    const selectedWorkType = await resolveWorkType(row.workTypeId ?? existing.workTypeId, defaultWorkType);
     const patch = {
       workDate,
-      ...workTypePatch,
+      workType: selectedWorkType?.label ?? "업무",
+      workTypeId: selectedWorkType?.id ?? null,
       primaryWork: mergeWorkContent(row.primaryWork, row.secondaryWork),
       secondaryWork: "",
       destinationId: normalizeNullableId(row.destinationId),

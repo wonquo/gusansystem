@@ -812,53 +812,19 @@ export function CompanyCalendar({
         <div className="grid h-full min-h-[620px] lg:grid-cols-[minmax(0,1fr)_240px] 2xl:grid-cols-[minmax(0,1fr)_260px]">
           <section className="flex min-w-0 flex-col px-4 py-4 md:px-5">
             <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <h1 className="flex min-w-0 items-center gap-2 text-xl font-bold text-[#111827] md:text-2xl">
-                {formatMonth(visibleMonth)}
-                <ChevronDown className="size-4 shrink-0 text-[#7b8798]" />
-              </h1>
-
-              <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                <div className="flex items-center rounded-md border border-[#c9d8ef] bg-[#f8fbff] shadow-sm">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 rounded-r-none border-r border-[#dbe6f7] text-[#2f70dc] hover:bg-[#eef5ff] hover:text-[#1d5fc2]"
-                    aria-label="이전 달"
-                    onClick={() => changeMonth(-1)}
-                  >
-                    <ChevronLeft className="size-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 rounded-l-none text-[#2f70dc] hover:bg-[#eef5ff] hover:text-[#1d5fc2]"
-                    aria-label="다음 달"
-                    onClick={() => changeMonth(1)}
-                  >
-                    <ChevronRight className="size-4" />
-                  </Button>
-                </div>
-                <Button
-                  variant="outline"
-                  className="h-8 rounded-md border-[#c9d8ef] bg-[#f8fbff] px-3 text-sm font-semibold text-[#2363c7] shadow-sm hover:bg-[#eef5ff] hover:text-[#184fa3]"
-                  onClick={() => {
-                    const current = new Date();
-                    setVisibleMonth(new Date(current.getFullYear(), current.getMonth(), 1));
-                  }}
-                >
-                  오늘
-                </Button>
+              <h1 className="min-w-0 text-xl font-bold text-[#111827] md:text-2xl">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className="h-8 gap-1 rounded-md border-[#c9d8ef] bg-[#f8fbff] px-3 text-sm font-semibold text-[#2363c7] shadow-sm hover:bg-[#eef5ff] hover:text-[#184fa3]"
+                    <button
+                      aria-label={`${formatMonth(visibleMonth)} 선택`}
+                      className="flex min-w-0 items-center gap-2 rounded-md text-left transition-colors hover:text-[#2363c7] focus-visible:ring-2 focus-visible:ring-[#2f70dc] focus-visible:ring-offset-2 focus-visible:outline-none"
+                      type="button"
                     >
-                      {visibleMonth.getMonth() + 1}월
-                      <ChevronDown className="size-4 text-[#6b8fd0]" />
-                    </Button>
+                      <span className="truncate">{formatMonth(visibleMonth)}</span>
+                      <ChevronDown className="size-4 shrink-0 text-[#7b8798]" />
+                    </button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-60 p-2">
+                  <DropdownMenuContent align="start" className="w-60 p-2">
                     <div className="mb-2 flex items-center justify-between px-1">
                       <Button
                         variant="ghost"
@@ -902,6 +868,39 @@ export function CompanyCalendar({
                     </div>
                   </DropdownMenuContent>
                 </DropdownMenu>
+              </h1>
+
+              <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                <div className="flex items-center rounded-md border border-[#c9d8ef] bg-[#f8fbff] shadow-sm">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 rounded-r-none border-r border-[#dbe6f7] text-[#2f70dc] hover:bg-[#eef5ff] hover:text-[#1d5fc2]"
+                    aria-label="이전 달"
+                    onClick={() => changeMonth(-1)}
+                  >
+                    <ChevronLeft className="size-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 rounded-l-none text-[#2f70dc] hover:bg-[#eef5ff] hover:text-[#1d5fc2]"
+                    aria-label="다음 달"
+                    onClick={() => changeMonth(1)}
+                  >
+                    <ChevronRight className="size-4" />
+                  </Button>
+                </div>
+                <Button
+                  variant="outline"
+                  className="h-8 rounded-md border-[#c9d8ef] bg-[#f8fbff] px-3 text-sm font-semibold text-[#2363c7] shadow-sm hover:bg-[#eef5ff] hover:text-[#184fa3]"
+                  onClick={() => {
+                    const current = new Date();
+                    setVisibleMonth(new Date(current.getFullYear(), current.getMonth(), 1));
+                  }}
+                >
+                  오늘
+                </Button>
                 <Button
                   variant="outline"
                   size="icon"
@@ -1244,19 +1243,20 @@ export function CompanyCalendar({
                     }}
                   />
                 </div>
-                <div className="grid min-w-0 gap-1.5">
-                  <Label htmlFor="calendar-start">시작 시간</Label>
-                  <Input
-                    className={calendarFormInputClass}
-                    disabled={form.allDay ?? true}
-                    id="calendar-start"
-                    type="time"
-                    value={form.startTime}
-                    onChange={(event) =>
-                      setForm((current) => ({ ...current, startTime: event.target.value }))
-                    }
-                  />
-                </div>
+                {!(form.allDay ?? true) ? (
+                  <div className="grid min-w-0 gap-1.5">
+                    <Label htmlFor="calendar-start">시작 시간</Label>
+                    <Input
+                      className={calendarFormInputClass}
+                      id="calendar-start"
+                      type="time"
+                      value={form.startTime}
+                      onChange={(event) =>
+                        setForm((current) => ({ ...current, startTime: event.target.value }))
+                      }
+                    />
+                  </div>
+                ) : null}
               </div>
 
               <div className="grid min-w-0 gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
@@ -1273,19 +1273,20 @@ export function CompanyCalendar({
                     }
                   />
                 </div>
-                <div className="grid min-w-0 gap-1.5">
-                  <Label htmlFor="calendar-end">종료 시간</Label>
-                  <Input
-                    className={calendarFormInputClass}
-                    disabled={form.allDay ?? true}
-                    id="calendar-end"
-                    type="time"
-                    value={form.endTime}
-                    onChange={(event) =>
-                      setForm((current) => ({ ...current, endTime: event.target.value }))
-                    }
-                  />
-                </div>
+                {!(form.allDay ?? true) ? (
+                  <div className="grid min-w-0 gap-1.5">
+                    <Label htmlFor="calendar-end">종료 시간</Label>
+                    <Input
+                      className={calendarFormInputClass}
+                      id="calendar-end"
+                      type="time"
+                      value={form.endTime}
+                      onChange={(event) =>
+                        setForm((current) => ({ ...current, endTime: event.target.value }))
+                      }
+                    />
+                  </div>
+                ) : null}
               </div>
 
               <div className="grid gap-1.5">

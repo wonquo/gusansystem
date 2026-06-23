@@ -81,9 +81,15 @@ export function BoardDetail({
         <div>
           <h1 className="text-2xl font-bold text-[#0d1b3d]">게시글 상세</h1>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between gap-2 md:justify-end">
+          <Button asChild variant="outline" className="md:order-last">
+            <Link href="/board">
+              <ArrowLeft className="size-4" />
+              목록
+            </Link>
+          </Button>
           {canManagePost ? (
-            <>
+            <div className="flex items-center gap-2">
               <Button asChild variant="outline">
                 <Link href={`/board/${post.id}/edit`}>
                   <Pencil className="size-4" />
@@ -99,14 +105,8 @@ export function BoardDetail({
                 <Trash2 className="size-4" />
                 삭제
               </Button>
-            </>
+            </div>
           ) : null}
-          <Button asChild variant="outline">
-            <Link href="/board">
-              <ArrowLeft className="size-4" />
-              목록
-            </Link>
-          </Button>
         </div>
       </div>
 

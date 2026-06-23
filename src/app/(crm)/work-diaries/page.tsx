@@ -26,7 +26,7 @@ export default async function WorkDiariesPage() {
       targetUserId: user.id,
     }),
     listWorkDiaryDestinations(),
-    user.role === "admin" ? listWorkDiaryTypes() : Promise.resolve([]),
+    listWorkDiaryTypes(),
   ]);
 
   return (

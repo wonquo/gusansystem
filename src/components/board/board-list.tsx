@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState, type FormEvent } from "react";
-import { MessageCircle, Paperclip, Plus, RefreshCw, Search } from "lucide-react";
+import { MessageCircle, Plus, RefreshCw, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,11 +34,6 @@ export function BoardList({ posts }: { posts: BoardPostRow[] }) {
     );
   }, [posts, query]);
 
-  const attachmentCount = useMemo(
-    () => posts.reduce((sum, post) => sum + post.attachments.length, 0),
-    [posts],
-  );
-
   function searchBoard(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
   }
@@ -52,20 +47,6 @@ export function BoardList({ posts }: { posts: BoardPostRow[] }) {
       <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
         <div className="hidden min-w-0 md:block">
           <h1 className="text-base font-semibold tracking-tight text-[#0d1b3d]">게시판</h1>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="outline" className="hidden h-7 border-[#cfd9e7] bg-white px-2.5 text-xs md:inline-flex">
-            {filteredPosts.length.toLocaleString()}건
-          </Badge>
-          <Badge variant="outline" className="h-7 border-[#cfd9e7] bg-white px-2.5 text-xs">
-            첨부 {attachmentCount.toLocaleString()}개
-          </Badge>
-          <Button asChild size="sm" className="bg-[#1f6fff] text-white hover:bg-[#195ed8]">
-            <Link href="/board/new">
-              <Plus className="size-3.5" />
-              글쓰기
-            </Link>
-          </Button>
         </div>
       </div>
 
@@ -101,7 +82,33 @@ export function BoardList({ posts }: { posts: BoardPostRow[] }) {
         </div>
       </form>
 
-      <section className="overflow-hidden rounded-lg border border-[#dbe3ee] bg-white shadow-[0_10px_34px_rgba(20,35,65,0.06)]">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="outline" className="h-7 border-[#cfd9e7] bg-white px-2.5 text-xs">
+            {filteredPosts.length.toLocaleString()}건
+          </Badge>
+        </div>
+        <Button asChild size="sm" className="bg-[#1f6fff] text-white hover:bg-[#195ed8]">
+          <Link href="/board/new">
+            <Plus className="size-3.5" />
+            글쓰기
+          </Link>
+        </Button>
+      </div>
+
+      <section className="grid gap-2 md:hidden" aria-label="게시글 카드 목록">
+        {filteredPosts.length === 0 ? (
+          <div className="flex min-h-48 items-center justify-center rounded-lg border border-[#dbe3ee] bg-white px-4 text-sm text-[#66748a] shadow-[0_6px_20px_rgba(20,35,65,0.05)]">
+            게시글이 없습니다.
+          </div>
+        ) : (
+          filteredPosts.map((post, index) => (
+            <MobileBoardCard key={post.id} post={post} index={index} />
+          ))
+        )}
+      </section>
+
+      <section className="hidden overflow-hidden rounded-lg border border-[#dbe3ee] bg-white shadow-[0_10px_34px_rgba(20,35,65,0.06)] md:block">
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
@@ -110,7 +117,6 @@ export function BoardList({ posts }: { posts: BoardPostRow[] }) {
                 <TableHead className="w-[92px]">분류</TableHead>
                 <TableHead className="min-w-[360px]">제목</TableHead>
                 <TableHead className="w-[120px]">작성자</TableHead>
-                <TableHead className="w-[84px] text-center">첨부</TableHead>
                 <TableHead className="w-[84px] text-center">댓글</TableHead>
                 <TableHead className="w-[132px]">등록일</TableHead>
               </TableRow>
@@ -118,7 +124,7 @@ export function BoardList({ posts }: { posts: BoardPostRow[] }) {
             <TableBody>
               {filteredPosts.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="h-64 text-center text-[#66748a]">
+                  <TableCell colSpan={6} className="h-64 text-center text-[#66748a]">
                     게시글이 없습니다.
                   </TableCell>
                 </TableRow>
@@ -147,12 +153,6 @@ export function BoardList({ posts }: { posts: BoardPostRow[] }) {
                     </TableCell>
                     <TableCell className="text-center">
                       <span className="inline-flex items-center justify-center gap-1 text-sm font-semibold text-[#526079]">
-                        <Paperclip className="size-4" />
-                        {post.attachments.length.toLocaleString()}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <span className="inline-flex items-center justify-center gap-1 text-sm font-semibold text-[#526079]">
                         <MessageCircle className="size-4" />
                         {post.commentCount.toLocaleString()}
                       </span>
@@ -168,5 +168,49 @@ export function BoardList({ posts }: { posts: BoardPostRow[] }) {
         </div>
       </section>
     </div>
+  );
+}
+
+function MobileBoardCard({ post, index }: { post: BoardPostRow; index: number }) {
+  const preview = stripHtml(post.content);
+
+  return (
+    <Link
+      href={`/board/${post.id}`}
+      className="block rounded-lg border border-[#dbe3ee] bg-white p-3 shadow-[0_6px_20px_rgba(20,35,65,0.05)] transition-colors hover:border-[#b8c9df] hover:bg-[#f8fbff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1f6fff]"
+    >
+      <article className="grid gap-2">
+        <div className="flex min-w-0 items-start justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="shrink-0 text-[11px] font-semibold text-[#8a96a8]">
+              No. {index + 1}
+            </span>
+            <CategoryBadge category={post.category} />
+          </div>
+          <span className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-[#526079]">
+            <MessageCircle className="size-3.5" />
+            {post.commentCount.toLocaleString()}
+          </span>
+        </div>
+
+        <div className="min-w-0">
+          <h2 className="line-clamp-2 text-sm font-bold leading-5 text-[#0d1b3d]">
+            {post.title}
+          </h2>
+          {preview ? (
+            <p className="mt-1 line-clamp-2 text-xs leading-5 text-[#7a869b]">{preview}</p>
+          ) : null}
+        </div>
+
+        <div className="flex min-w-0 items-center justify-between gap-2 border-t border-[#edf2f7] pt-2 text-xs text-[#66748a]">
+          <span className="min-w-0 truncate font-medium text-[#526079]">
+            {post.authorName ?? "알 수 없음"}
+          </span>
+          <time className="shrink-0" dateTime={post.createdAt}>
+            {formatBoardDate(post.createdAt)}
+          </time>
+        </div>
+      </article>
+    </Link>
   );
 }

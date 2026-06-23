@@ -14,6 +14,7 @@ import {
 } from "ag-grid-community";
 import {
   Bold,
+  Eye,
   Italic,
   Link as LinkIcon,
   List,
@@ -21,7 +22,6 @@ import {
   Loader2,
   Paperclip,
   Plus,
-  RefreshCw,
   Save,
   Search,
   Trash2,
@@ -97,8 +97,9 @@ export function MemoGrid({
       {
         field: "title",
         headerName: "제목",
-        flex: 1.3,
-        minWidth: 260,
+        flex: 0.55,
+        minWidth: 160,
+        maxWidth: 240,
         cellClass: "erp-grid-cell text-sm font-semibold",
       },
       {
@@ -136,7 +137,8 @@ export function MemoGrid({
       {
         field: "updatedAt",
         headerName: "수정일",
-        width: 160,
+        width: 210,
+        minWidth: 200,
         cellClass: "erp-grid-cell erp-grid-cell-date",
         valueFormatter: (params) => formatDateTime(params.value),
       },
@@ -185,6 +187,7 @@ export function MemoGrid({
   }
 
   function openMemo(row: MemoRow) {
+    setSelectedRow(row);
     setDraft({
       id: row.id,
       title: row.title,
@@ -278,55 +281,85 @@ export function MemoGrid({
   }
 
   return (
-    <div className="crm-erp-surface mx-auto flex h-[calc(100vh-5.5rem)] max-w-[1840px] flex-col gap-3 overflow-hidden">
+    <div className="crm-erp-surface mx-auto flex h-[calc(100vh-5.5rem)] max-w-[1840px] flex-col gap-3 overflow-hidden max-md:h-[calc(100dvh-5.5rem)]">
       <div className="hidden flex-col gap-2 md:flex md:flex-row md:items-end md:justify-between">
         <div>
           <h1 className="text-base font-semibold tracking-tight text-[#0d1b3d]">메모</h1>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="outline" className="h-7 w-fit border-[#cfd9e7] bg-white px-2.5 text-xs">
-            {filteredRows.length.toLocaleString()}건
-          </Badge>
-        </div>
       </div>
 
       <div className="overflow-hidden rounded-lg border border-[#d8e0ea] bg-white shadow-[0_1px_4px_rgba(15,28,48,0.06)]">
-        <div className="grid gap-px bg-[#edf1f6] p-px lg:grid-cols-[88px_minmax(260px,420px)_auto]">
-          <div className="flex items-center bg-[#f2f5f9] px-3 py-2 text-[11px] font-semibold whitespace-nowrap text-[#69758a]">
+        <div className="grid gap-px bg-[#edf1f6] p-px md:grid-cols-[88px_minmax(280px,460px)_auto]">
+          <div className="hidden items-center bg-[#f2f5f9] px-3 py-2 text-[11px] font-semibold whitespace-nowrap text-[#69758a] md:flex">
             검색
           </div>
           <div className="bg-white p-2">
-            <div className="relative">
-              <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-[#7c8aa0]" />
-              <Input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") reloadRows();
-                }}
-                placeholder="제목, 내용, 작성자 검색"
-                className="h-8 border-[#d8e0ea] bg-white pl-7 text-sm focus-visible:border-[#2f70dc] focus-visible:ring-[#2f70dc]/20"
-              />
+            <div className="flex gap-2">
+              <div className="relative min-w-0 flex-1">
+                <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-[#7c8aa0]" />
+                <Input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") reloadRows();
+                  }}
+                  placeholder="제목, 내용, 작성자 검색"
+                  className="h-10 border-[#d8e0ea] bg-white pl-7 text-base focus-visible:border-[#2f70dc] focus-visible:ring-[#2f70dc]/20 sm:h-8 sm:text-sm"
+                />
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="size-10 shrink-0 md:hidden"
+                onClick={() => reloadRows()}
+                disabled={isPending}
+                aria-label="조회"
+              >
+                <Search className="size-4" />
+              </Button>
             </div>
           </div>
-          <div className="flex flex-col gap-2 bg-[#f8fafc] p-2 lg:flex-row lg:items-center lg:justify-end">
-            <Button type="button" variant="outline" size="sm" onClick={() => reloadRows()} disabled={isPending}>
-              <RefreshCw className="size-3.5" />
-              새로고침
+          <div className="hidden flex-col gap-2 bg-[#f8fafc] p-2 md:flex md:flex-row md:items-center md:justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="w-full justify-center md:w-auto"
+              onClick={() => reloadRows()}
+              disabled={isPending}
+            >
+              <Search className="size-3.5" />
+              조회
             </Button>
-            {canDelete ? (
-              <Button type="button" variant="outline" size="sm" onClick={() => deleteCurrentMemo()} disabled={isPending}>
-                <Trash2 className="size-3.5" />
-                삭제
-              </Button>
-            ) : null}
-            {canCreate ? (
-              <Button type="button" size="sm" onClick={openNewMemo} disabled={isPending}>
-                <Plus className="size-3.5" />
-                새 메모
-              </Button>
-            ) : null}
           </div>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Badge variant="outline" className="h-7 w-fit border-[#cfd9e7] bg-white px-2.5 text-xs">
+          {filteredRows.length.toLocaleString()}건
+        </Badge>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {canDelete ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="hidden justify-center md:inline-flex"
+              onClick={() => deleteCurrentMemo()}
+              disabled={isPending}
+            >
+              <Trash2 className="size-3.5" />
+              삭제
+            </Button>
+          ) : null}
+          {canCreate ? (
+            <Button type="button" size="sm" className="justify-center" onClick={openNewMemo} disabled={isPending}>
+              <Plus className="size-3.5" />
+              새 메모
+            </Button>
+          ) : null}
         </div>
       </div>
 
@@ -343,7 +376,32 @@ export function MemoGrid({
         </Alert>
       ) : null}
 
-      <div className="relative min-h-0 flex-1 overflow-hidden rounded-lg border border-[#d8e0ea] bg-white shadow-[0_10px_34px_rgba(15,28,48,0.06)]">
+      <div className="relative min-h-0 flex-1 overflow-y-auto md:hidden">
+        {isPending ? (
+          <div className="sticky inset-x-0 top-0 z-10 h-0.5 overflow-hidden bg-[#dbe7fb]">
+            <span className="block h-full w-1/3 animate-pulse bg-[#2f70dc]" />
+          </div>
+        ) : null}
+
+        <div className="flex flex-col gap-2 pb-2">
+          {filteredRows.length ? (
+            filteredRows.map((row) => (
+              <MemoMobileCard
+                key={row.id}
+                row={row}
+                canUpdate={canUpdate}
+                onOpen={openMemo}
+              />
+            ))
+          ) : (
+            <div className="grid min-h-48 place-items-center rounded-lg border border-dashed border-[#cfd9e7] bg-white px-4 text-center text-sm text-[#64748b]">
+              표시할 메모가 없습니다
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="relative hidden min-h-0 flex-1 overflow-hidden rounded-lg border border-[#d8e0ea] bg-white shadow-[0_10px_34px_rgba(15,28,48,0.06)] md:block">
         {isPending ? (
           <div className="absolute inset-x-0 top-0 z-10 h-0.5 overflow-hidden bg-[#dbe7fb]">
             <span className="block h-full w-1/3 animate-pulse bg-[#2f70dc]" />
@@ -393,6 +451,67 @@ export function MemoGrid({
         onSave={saveMemo}
       />
     </div>
+  );
+}
+
+function MemoMobileCard({
+  row,
+  canUpdate,
+  onOpen,
+}: {
+  row: MemoRow;
+  canUpdate: boolean;
+  onOpen: (row: MemoRow) => void;
+}) {
+  const content = toPlainText(row.content);
+  const attachmentCount = row.attachments.length;
+
+  return (
+    <article
+      className="rounded-lg border border-[#dbe3ef] bg-white px-3 py-2.5 shadow-[0_8px_22px_rgba(15,28,48,0.055)]"
+      aria-label={`${row.title || "제목 없음"} 메모`}
+    >
+      <div className="flex min-w-0 items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="flex min-w-0 items-center gap-1.5">
+            <h2 className="min-w-0 truncate text-[15px] font-bold tracking-tight text-[#0d1b3d]">
+              {row.title || "제목 없음"}
+            </h2>
+            {attachmentCount ? (
+              <span className="inline-flex shrink-0 items-center gap-1 rounded-md border border-[#d8e0ea] bg-[#f8fafc] px-1.5 py-0.5 text-[11px] font-bold text-[#475569]">
+                <Paperclip className="size-3" />
+                {attachmentCount}
+              </span>
+            ) : null}
+          </div>
+          <div className="mt-1 flex min-w-0 items-center gap-1.5 whitespace-nowrap text-[11px] text-[#7c8aa0]">
+            <span className="max-w-[96px] truncate font-semibold text-[#475569]">{row.authorName || "작성자 없음"}</span>
+            <span className="text-[#c1cad8]">·</span>
+            <span className="min-w-0 truncate">수정일 {formatDateTime(row.updatedAt) || "-"}</span>
+          </div>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-8 shrink-0 rounded-md border-[#cdd8e7] px-2 text-[11px] font-bold text-[#1f4f9f]"
+          onClick={() => onOpen(row)}
+        >
+          <Eye className="size-3.5" />
+          {canUpdate ? "편집" : "상세"}
+        </Button>
+      </div>
+
+      <button
+        type="button"
+        className="mt-2 block w-full rounded-md bg-[#f8fafc] px-2.5 py-2 text-left transition hover:bg-[#f1f5f9]"
+        onClick={() => onOpen(row)}
+      >
+        <p className="line-clamp-3 min-h-10 whitespace-pre-wrap break-words text-xs leading-5 text-[#334155]">
+          {content || "내용이 없습니다."}
+        </p>
+      </button>
+    </article>
   );
 }
 
@@ -452,11 +571,14 @@ function MemoDialog({
     event.target.value = "";
   }
 
+  const isEditing = Boolean(draft.id);
+  const saveLabel = isPending ? (isEditing ? "저장 중" : "등록 중") : isEditing ? "저장" : "등록";
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="grid max-h-[88vh] grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0 sm:max-w-4xl">
-        <DialogHeader className="border-b border-[#e2e8f0] px-4 py-3">
-          <DialogTitle>{draft.id ? "메모 상세" : "새 메모"}</DialogTitle>
+      <DialogContent className="top-[max(0.5rem,env(safe-area-inset-top))] bottom-[max(0.5rem,env(safe-area-inset-bottom))] grid w-[calc(100%-1rem)] max-w-none translate-y-0 grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0 sm:top-1/2 sm:bottom-auto sm:max-h-[88vh] sm:w-full sm:max-w-4xl sm:-translate-y-1/2">
+        <DialogHeader className="border-b border-[#e2e8f0] px-4 py-3 pr-12">
+          <DialogTitle>{isEditing ? (canSave ? "메모 수정" : "메모 상세") : "새 메모"}</DialogTitle>
         </DialogHeader>
 
         <div className="min-h-0 overflow-y-auto p-4">
@@ -470,7 +592,7 @@ function MemoDialog({
                 value={draft.title}
                 onChange={(event) => onDraftChange({ ...draft, title: event.target.value })}
                 placeholder="제목"
-                className="h-8 border-[#d8e0ea] bg-white text-sm"
+                className="h-11 border-[#d8e0ea] bg-white px-3 text-base sm:h-8 sm:text-sm"
               />
             </div>
 
@@ -509,7 +631,7 @@ function MemoDialog({
                   suppressContentEditableWarning
                   onInput={updateContent}
                   onBlur={updateContent}
-                  className="memo-rich-editor min-h-[260px] px-3 py-2 text-sm leading-6 text-[#1f2937] outline-none"
+                  className="memo-rich-editor min-h-[280px] px-3 py-2 text-base leading-6 text-[#1f2937] outline-none sm:min-h-[260px] sm:text-sm"
                 />
               </div>
             </div>
@@ -565,15 +687,34 @@ function MemoDialog({
           </div>
         </div>
 
-        <div className="shrink-0 border-t border-[#d8e0ea] bg-white px-4 pt-3 pb-5">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              {draft.id && canDelete ? (
+        <div className="shrink-0 border-t border-[#d8e0ea] bg-white px-4 pt-3 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:pb-3">
+          <div className="grid gap-2 sm:hidden">
+            <Button
+              type="button"
+              size="sm"
+              className="h-11 w-full"
+              onClick={onSave}
+              disabled={isPending || !canSave || !draft.title.trim()}
+            >
+              {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
+              {saveLabel}
+            </Button>
+            <div className={isEditing && canDelete ? "grid grid-cols-2 gap-2" : "grid"}>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-10 w-full"
+                onClick={() => onOpenChange(false)}
+              >
+                닫기
+              </Button>
+              {isEditing && canDelete ? (
                 <Button
                   type="button"
-                  variant="destructive"
+                  variant="outline"
                   size="sm"
-                  className="h-11 w-full sm:h-7 sm:w-auto"
+                  className="h-10 w-full border-[#fecaca] bg-white text-[#dc2626] hover:bg-[#fef2f2] hover:text-[#b91c1c]"
                   onClick={onDelete}
                   disabled={isPending}
                 >
@@ -582,22 +723,40 @@ function MemoDialog({
                 </Button>
               ) : null}
             </div>
-            <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+          </div>
+
+          <div className="hidden sm:flex sm:items-center sm:justify-between">
+            {isEditing && canDelete ? (
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                className="h-7 w-auto"
+                onClick={onDelete}
+                disabled={isPending}
+              >
+                <Trash2 className="size-3.5" />
+                삭제
+              </Button>
+            ) : (
+              <span />
+            )}
+            <div className="flex justify-end gap-2">
               <Button
                 type="button"
                 size="sm"
-                className="h-11 w-full sm:h-7 sm:w-auto"
+                className="h-7 w-auto"
                 onClick={onSave}
                 disabled={isPending || !canSave || !draft.title.trim()}
               >
                 {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
-                저장
+                {saveLabel}
               </Button>
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                className="h-11 w-full sm:h-7 sm:w-auto"
+                className="h-7 w-auto"
                 onClick={() => onOpenChange(false)}
               >
                 닫기
