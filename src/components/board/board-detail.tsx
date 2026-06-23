@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { FormEvent, useState, useTransition } from "react";
-import { ArrowLeft, Send } from "lucide-react";
+import { ArrowLeft, Check, Pencil, Send, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import type { BoardCommentRow, BoardPostDetailRow } from "@/lib/types";
+import type { AppUserRow, BoardCommentRow, BoardPostDetailRow } from "@/lib/types";
 import {
   AttachmentList,
   CategoryBadge,
@@ -13,12 +14,20 @@ import {
   sanitizeBoardHtml,
 } from "./board-editor";
 
-export function BoardDetail({ post }: { post: BoardPostDetailRow }) {
+export function BoardDetail({
+  post,
+  currentUser,
+}: {
+  post: BoardPostDetailRow;
+  currentUser: AppUserRow;
+}) {
+  const router = useRouter();
   const [comments, setComments] = useState(post.comments);
   const [commentCount, setCommentCount] = useState(post.commentCount);
   const [comment, setComment] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const canManagePost = canManage(currentUser, post.createdBy);
 
   function submitComment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -46,18 +55,59 @@ export function BoardDetail({ post }: { post: BoardPostDetailRow }) {
     });
   }
 
+  function removePost() {
+    if (!window.confirm("이 게시글을 삭제할까요? 댓글도 함께 삭제됩니다.")) {
+      return;
+    }
+
+    setError(null);
+    startTransition(async () => {
+      const response = await fetch(`/api/board/${post.id}`, { method: "DELETE" });
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.error ?? "게시글을 삭제하지 못했습니다.");
+        return;
+      }
+
+      router.push("/board");
+      router.refresh();
+    });
+  }
+
   return (
     <div className="mx-auto w-full max-w-[1840px] space-y-4">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-[#0d1b3d]">게시글 상세</h1>
         </div>
-        <Button asChild variant="outline">
-          <Link href="/board">
-            <ArrowLeft className="size-4" />
-            목록
-          </Link>
-        </Button>
+        <div className="flex items-center gap-2">
+          {canManagePost ? (
+            <>
+              <Button asChild variant="outline">
+                <Link href={`/board/${post.id}/edit`}>
+                  <Pencil className="size-4" />
+                  수정
+                </Link>
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={removePost}
+                disabled={isPending}
+              >
+                <Trash2 className="size-4" />
+                삭제
+              </Button>
+            </>
+          ) : null}
+          <Button asChild variant="outline">
+            <Link href="/board">
+              <ArrowLeft className="size-4" />
+              목록
+            </Link>
+          </Button>
+        </div>
       </div>
 
       {error ? (
@@ -115,7 +165,26 @@ export function BoardDetail({ post }: { post: BoardPostDetailRow }) {
               아직 댓글이 없습니다.
             </div>
           ) : (
-            comments.map((item) => <CommentItem key={item.id} comment={item} />)
+            comments.map((item) => (
+              <CommentItem
+                key={item.id}
+                postId={post.id}
+                comment={item}
+                currentUser={currentUser}
+                onError={setError}
+                onUpdated={(updated) =>
+                  setComments((current) =>
+                    current.map((commentItem) =>
+                      commentItem.id === updated.id ? updated : commentItem,
+                    ),
+                  )
+                }
+                onDeleted={(commentId) => {
+                  setComments((current) => current.filter((commentItem) => commentItem.id !== commentId));
+                  setCommentCount((current) => Math.max(0, current - 1));
+                }}
+              />
+            ))
           )}
         </div>
       </section>
@@ -123,14 +192,152 @@ export function BoardDetail({ post }: { post: BoardPostDetailRow }) {
   );
 }
 
-function CommentItem({ comment }: { comment: BoardCommentRow }) {
+function CommentItem({
+  postId,
+  comment,
+  currentUser,
+  onError,
+  onUpdated,
+  onDeleted,
+}: {
+  postId: string;
+  comment: BoardCommentRow;
+  currentUser: AppUserRow;
+  onError: (message: string | null) => void;
+  onUpdated: (comment: BoardCommentRow) => void;
+  onDeleted: (commentId: string) => void;
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [content, setContent] = useState(comment.content);
+  const [isPending, startTransition] = useTransition();
+  const canManageComment = canManage(currentUser, comment.createdBy);
+
+  function saveComment() {
+    const nextContent = content.trim();
+    if (!nextContent) {
+      onError("댓글 내용을 입력해 주세요.");
+      return;
+    }
+
+    onError(null);
+    startTransition(async () => {
+      const response = await fetch(`/api/board/${postId}/comments/${comment.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: nextContent }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        onError(data.error ?? "댓글을 저장하지 못했습니다.");
+        return;
+      }
+
+      onUpdated(data.comment);
+      setContent(data.comment.content);
+      setIsEditing(false);
+    });
+  }
+
+  function removeComment() {
+    if (!window.confirm("이 댓글을 삭제할까요?")) {
+      return;
+    }
+
+    onError(null);
+    startTransition(async () => {
+      const response = await fetch(`/api/board/${postId}/comments/${comment.id}`, {
+        method: "DELETE",
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        onError(data.error ?? "댓글을 삭제하지 못했습니다.");
+        return;
+      }
+
+      onDeleted(comment.id);
+    });
+  }
+
   return (
     <article className="rounded-md border border-[#edf2f7] bg-white px-3 py-2">
-      <div className="flex flex-wrap items-center gap-2 text-xs text-[#7a869b]">
-        <span className="font-bold text-[#22304f]">{comment.authorName ?? "알 수 없음"}</span>
-        <span>{formatBoardDate(comment.createdAt)}</span>
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[#7a869b]">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-bold text-[#22304f]">{comment.authorName ?? "알 수 없음"}</span>
+          <span>{formatBoardDate(comment.createdAt)}</span>
+        </div>
+        {canManageComment ? (
+          <div className="flex items-center gap-1">
+            {isEditing ? (
+              <>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  aria-label="댓글 저장"
+                  onClick={saveComment}
+                  disabled={isPending || content.trim().length === 0}
+                >
+                  <Check className="size-3.5" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  aria-label="댓글 수정 취소"
+                  onClick={() => {
+                    setContent(comment.content);
+                    setIsEditing(false);
+                  }}
+                  disabled={isPending}
+                >
+                  <X className="size-3.5" />
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  aria-label="댓글 수정"
+                  onClick={() => setIsEditing(true)}
+                >
+                  <Pencil className="size-3.5" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  aria-label="댓글 삭제"
+                  className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                  onClick={removeComment}
+                  disabled={isPending}
+                >
+                  <Trash2 className="size-3.5" />
+                </Button>
+              </>
+            )}
+          </div>
+        ) : null}
       </div>
-      <p className="mt-1 whitespace-pre-wrap text-sm leading-5 text-[#22304f]">{comment.content}</p>
+      {isEditing ? (
+        <Textarea
+          value={content}
+          onChange={(event) => setContent(event.target.value)}
+          className="mt-2 min-h-20 resize-none text-sm leading-5"
+          rows={3}
+          autoFocus
+        />
+      ) : (
+        <p className="mt-1 whitespace-pre-wrap text-sm leading-5 text-[#22304f]">{comment.content}</p>
+      )}
+      <AttachmentList attachments={comment.attachments} compact />
     </article>
   );
+}
+
+function canManage(user: AppUserRow, createdBy: string | null) {
+  return user.role === "admin" || createdBy === user.id;
 }

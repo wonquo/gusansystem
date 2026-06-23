@@ -1,4 +1,4 @@
-import { count, desc, eq } from "drizzle-orm";
+import { and, count, desc, eq } from "drizzle-orm";
 import { getDb, hasDatabaseUrl } from "@/db";
 import { appUsers, boardComments, boardPosts } from "@/db/schema";
 import type {
@@ -19,6 +19,13 @@ export type BoardCommentInput = {
   content: string;
   attachments?: BoardAttachment[];
 };
+
+export function canManageBoardResource(
+  user: { id: string; role: string },
+  createdBy: string | null,
+) {
+  return user.role === "admin" || createdBy === user.id;
+}
 
 export async function listBoardPosts(): Promise<BoardPostRow[]> {
   if (!hasDatabaseUrl()) {
@@ -106,6 +113,31 @@ export async function createBoardPost(input: BoardPostInput, createdBy: string) 
   return getBoardPostDetail(post.id);
 }
 
+export async function updateBoardPost(id: string, input: BoardPostInput) {
+  const [post] = await getDb()
+    .update(boardPosts)
+    .set({
+      title: input.title.trim(),
+      content: input.content.trim(),
+      category: input.category.trim() || "일반",
+      attachments: normalizeAttachments(input.attachments),
+      updatedAt: new Date(),
+    })
+    .where(eq(boardPosts.id, id))
+    .returning();
+
+  return post ? getBoardPostDetail(post.id) : null;
+}
+
+export async function deleteBoardPost(id: string) {
+  const [deleted] = await getDb()
+    .delete(boardPosts)
+    .where(eq(boardPosts.id, id))
+    .returning({ id: boardPosts.id });
+
+  return deleted ?? null;
+}
+
 export async function listBoardComments(postId: string): Promise<BoardCommentRow[]> {
   if (!hasDatabaseUrl()) {
     return [];
@@ -150,6 +182,55 @@ export async function createBoardComment(
     .limit(1);
 
   return serializeComment(row.comment, row.authorName);
+}
+
+export async function getBoardComment(postId: string, commentId: string) {
+  if (!hasDatabaseUrl()) {
+    return null;
+  }
+
+  const [row] = await getDb()
+    .select({
+      comment: boardComments,
+      authorName: appUsers.name,
+    })
+    .from(boardComments)
+    .leftJoin(appUsers, eq(boardComments.createdBy, appUsers.id))
+    .where(and(eq(boardComments.postId, postId), eq(boardComments.id, commentId)))
+    .limit(1);
+
+  return row ? serializeComment(row.comment, row.authorName) : null;
+}
+
+export async function updateBoardComment(
+  postId: string,
+  commentId: string,
+  input: BoardCommentInput,
+) {
+  const values: Partial<typeof boardComments.$inferInsert> = {
+    content: input.content.trim(),
+    updatedAt: new Date(),
+  };
+  if (input.attachments !== undefined) {
+    values.attachments = normalizeAttachments(input.attachments);
+  }
+
+  const [comment] = await getDb()
+    .update(boardComments)
+    .set(values)
+    .where(and(eq(boardComments.postId, postId), eq(boardComments.id, commentId)))
+    .returning();
+
+  return comment ? getBoardComment(postId, comment.id) : null;
+}
+
+export async function deleteBoardComment(postId: string, commentId: string) {
+  const [deleted] = await getDb()
+    .delete(boardComments)
+    .where(and(eq(boardComments.postId, postId), eq(boardComments.id, commentId)))
+    .returning({ id: boardComments.id });
+
+  return deleted ?? null;
 }
 
 function normalizeAttachments(value?: BoardAttachment[]) {

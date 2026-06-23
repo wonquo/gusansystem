@@ -54,6 +54,8 @@ const CATEGORY_SWATCHES = [
   "#06b6d4",
   "#ec4899",
 ];
+const calendarFormInputClass =
+  "h-11 min-w-0 max-w-full rounded-md px-3 text-base sm:h-8 sm:px-2.5 sm:text-sm";
 
 type CalendarForm = {
   title: string;
@@ -1222,7 +1224,7 @@ export function CompanyCalendar({
       </Dialog>
 
       <Dialog open={isFormOpen} onOpenChange={handleFormOpenChange}>
-        <DialogContent className="top-[max(0.5rem,env(safe-area-inset-top))] bottom-[max(0.5rem,env(safe-area-inset-bottom))] flex w-[calc(100%-1rem)] max-w-none translate-y-0 flex-col gap-0 overflow-hidden rounded-xl p-0 sm:top-1/2 sm:bottom-auto sm:w-full sm:max-w-xl sm:-translate-y-1/2 sm:gap-4 sm:p-4">
+        <DialogContent className="top-[max(0.5rem,env(safe-area-inset-top))] bottom-[max(0.5rem,env(safe-area-inset-bottom))] flex w-[calc(100%_-_1rem)] max-w-none translate-y-0 flex-col gap-0 overflow-hidden rounded-xl p-0 sm:top-1/2 sm:bottom-auto sm:w-full sm:max-w-xl sm:-translate-y-1/2 sm:gap-4 sm:p-4">
           <form onSubmit={submitEvent} className="flex min-h-0 flex-1 flex-col">
             <DialogHeader className="shrink-0 px-4 pt-4 pr-12 pb-3 sm:px-0 sm:pt-0 sm:pr-8 sm:pb-0">
               <DialogTitle>{editingEventId ? "일정 수정" : "일정 등록"}</DialogTitle>
@@ -1236,7 +1238,7 @@ export function CompanyCalendar({
               <div className="grid gap-1.5">
                 <Label htmlFor="calendar-title">일정명</Label>
                 <Input
-                  className="h-11 rounded-md px-3 text-base sm:h-8 sm:px-2.5 sm:text-sm"
+                  className={calendarFormInputClass}
                   id="calendar-title"
                   value={form.title}
                   onChange={(event) =>
@@ -1284,11 +1286,11 @@ export function CompanyCalendar({
                 </div>
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="grid gap-1.5">
+              <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
+                <div className="grid min-w-0 gap-1.5">
                   <Label htmlFor="calendar-start-date">시작일</Label>
                   <Input
-                    className="h-11 rounded-md px-3 text-base sm:h-8 sm:px-2.5 sm:text-sm"
+                    className={calendarFormInputClass}
                     id="calendar-start-date"
                     type="date"
                     value={form.startDate || todayValue}
@@ -1303,26 +1305,10 @@ export function CompanyCalendar({
                     }}
                   />
                 </div>
-                <div className="grid gap-1.5">
-                  <Label htmlFor="calendar-end-date">종료일</Label>
-                  <Input
-                    className="h-11 rounded-md px-3 text-base sm:h-8 sm:px-2.5 sm:text-sm"
-                    id="calendar-end-date"
-                    type="date"
-                    min={form.startDate || todayValue}
-                    value={form.endDate || form.startDate || todayValue}
-                    onChange={(event) =>
-                      setForm((current) => ({ ...current, endDate: event.target.value }))
-                    }
-                  />
-                </div>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="grid gap-1.5">
+                <div className="grid min-w-0 gap-1.5">
                   <Label htmlFor="calendar-start">시작 시간</Label>
                   <Input
-                    className="h-11 rounded-md px-3 text-base sm:h-8 sm:px-2.5 sm:text-sm"
+                    className={calendarFormInputClass}
                     disabled={form.allDay ?? true}
                     id="calendar-start"
                     type="time"
@@ -1332,10 +1318,26 @@ export function CompanyCalendar({
                     }
                   />
                 </div>
-                <div className="grid gap-1.5">
+              </div>
+
+              <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
+                <div className="grid min-w-0 gap-1.5">
+                  <Label htmlFor="calendar-end-date">종료일</Label>
+                  <Input
+                    className={calendarFormInputClass}
+                    id="calendar-end-date"
+                    type="date"
+                    min={form.startDate || todayValue}
+                    value={form.endDate || form.startDate || todayValue}
+                    onChange={(event) =>
+                      setForm((current) => ({ ...current, endDate: event.target.value }))
+                    }
+                  />
+                </div>
+                <div className="grid min-w-0 gap-1.5">
                   <Label htmlFor="calendar-end">종료 시간</Label>
                   <Input
-                    className="h-11 rounded-md px-3 text-base sm:h-8 sm:px-2.5 sm:text-sm"
+                    className={calendarFormInputClass}
                     disabled={form.allDay ?? true}
                     id="calendar-end"
                     type="time"
@@ -1351,7 +1353,7 @@ export function CompanyCalendar({
                 <Label htmlFor="calendar-attendee">대상자</Label>
                 <div className="relative">
                   <Input
-                    className="h-11 rounded-md px-3 text-base sm:h-8 sm:px-2.5 sm:text-sm"
+                    className={calendarFormInputClass}
                     autoComplete="off"
                     id="calendar-attendee"
                     onChange={(event) => setAttendeeQuery(event.target.value)}
@@ -1418,7 +1420,7 @@ export function CompanyCalendar({
               <div className="grid gap-1.5">
                 <Label htmlFor="calendar-location">장소</Label>
                 <Input
-                  className="h-11 rounded-md px-3 text-base sm:h-8 sm:px-2.5 sm:text-sm"
+                  className={calendarFormInputClass}
                   id="calendar-location"
                   value={form.location}
                   onChange={(event) =>

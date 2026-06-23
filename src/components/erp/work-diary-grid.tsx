@@ -302,11 +302,6 @@ export function WorkDiaryGrid({
     [destinationNameById, destinationSelectValues, isAdmin, workTypeById, workTypeNameById, workTypeSelectValues],
   );
 
-  const selectedUser = useMemo(
-    () => users.find((user) => user.id === selectedUserId) ?? currentUser,
-    [currentUser, selectedUserId, users],
-  );
-
   const reloadRows = useCallback(
     (nextMonth = month, nextUserId = selectedUserId) => {
       startTransition(async () => {
@@ -615,7 +610,13 @@ export function WorkDiaryGrid({
       </div>
 
       <div className="overflow-hidden rounded-lg border border-[#d8e0ea] bg-white shadow-[0_1px_4px_rgba(15,28,48,0.06)]">
-        <div className="grid gap-px bg-[#edf1f6] p-px lg:grid-cols-[88px_minmax(230px,280px)_72px_minmax(170px,220px)_auto]">
+        <div
+          className={
+            isAdmin
+              ? "grid gap-px bg-[#edf1f6] p-px lg:grid-cols-[88px_minmax(230px,280px)_72px_minmax(170px,220px)_auto]"
+              : "grid gap-px bg-[#edf1f6] p-px lg:grid-cols-[88px_minmax(230px,280px)_auto]"
+          }
+        >
           <div className="flex items-center bg-[#f2f5f9] px-3 py-2 text-[11px] font-semibold whitespace-nowrap text-[#69758a]">
             기준월
           </div>
@@ -631,7 +632,7 @@ export function WorkDiaryGrid({
             >
               <ChevronLeft className="size-4" />
             </Button>
-            <div className="relative min-w-0 overflow-hidden">
+            <div className="relative min-w-0">
               <CalendarDays className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-[#7c8aa0]" />
               <Input
                 type="month"
@@ -640,7 +641,7 @@ export function WorkDiaryGrid({
                   setMonth(event.target.value);
                   reloadRows(event.target.value, selectedUserId);
                 }}
-                className="h-8 border-[#d8e0ea] bg-white pl-7 text-sm focus-visible:border-[#2f70dc] focus-visible:ring-[#2f70dc]/20"
+                className="work-diary-month-input h-8 border-[#d8e0ea] bg-white pr-8 pl-7 text-sm focus-visible:border-[#2f70dc] focus-visible:ring-[#2f70dc]/20"
                 disabled={isPending}
               />
             </div>
@@ -656,41 +657,40 @@ export function WorkDiaryGrid({
               <ChevronRight className="size-4" />
             </Button>
           </div>
-          <div className="flex items-center bg-[#f2f5f9] px-3 py-2 text-[11px] font-semibold whitespace-nowrap text-[#69758a]">
-            사용자
-          </div>
-          <div className="bg-white p-2">
-            {isAdmin ? (
-              <Select
-                value={selectedUserId}
-                onValueChange={(value) => {
-                  setSelectedUserId(value);
-                  reloadRows(month, value);
-                }}
-                disabled={isPending}
-              >
-                <SelectTrigger className="h-8 w-full border-[#d8e0ea] bg-white text-sm focus-visible:border-[#2f70dc] focus-visible:ring-[#2f70dc]/20">
-                  <SelectValue placeholder="사용자 선택" />
-                </SelectTrigger>
-                <SelectContent>
-                  {users.map((user) => (
-                    <SelectItem key={user.id} value={user.id}>
-                      {user.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : (
-              <div className="flex h-8 items-center rounded-md border border-[#d8e0ea] bg-[#f8fafc] px-3 text-sm font-medium text-[#334155]">
-                {selectedUser.name}
+          {isAdmin ? (
+            <>
+              <div className="flex items-center bg-[#f2f5f9] px-3 py-2 text-[11px] font-semibold whitespace-nowrap text-[#69758a]">
+                사용자
               </div>
-            )}
-          </div>
+              <div className="bg-white p-2">
+                <Select
+                  value={selectedUserId}
+                  onValueChange={(value) => {
+                    setSelectedUserId(value);
+                    reloadRows(month, value);
+                  }}
+                  disabled={isPending}
+                >
+                  <SelectTrigger className="h-8 w-full border-[#d8e0ea] bg-white text-sm focus-visible:border-[#2f70dc] focus-visible:ring-[#2f70dc]/20">
+                    <SelectValue placeholder="사용자 선택" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {users.map((user) => (
+                      <SelectItem key={user.id} value={user.id}>
+                        {user.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </>
+          ) : null}
           <div className="flex flex-col gap-2 bg-[#f8fafc] p-2 lg:min-w-[620px] lg:flex-row lg:items-center lg:justify-end">
             <Button
               type="button"
               variant="outline"
               size="sm"
+              className="hidden lg:inline-flex"
               onClick={() => setIsDestinationDialogOpen(true)}
               disabled={isPending}
             >
@@ -702,6 +702,7 @@ export function WorkDiaryGrid({
                 type="button"
                 variant="outline"
                 size="sm"
+                className="hidden lg:inline-flex"
                 onClick={() => setIsWorkTypeDialogOpen(true)}
                 disabled={isPending}
               >

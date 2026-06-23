@@ -159,6 +159,10 @@
   font-size: 12px;
 }
 
+.work-diary-month-input::-webkit-calendar-picker-indicator {
+  margin-right: 2px;
+}
+
 .mobile-app-footer,
 .desktop-view-toggle {
   display: none;

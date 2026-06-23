@@ -14,19 +14,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { BoardAttachment } from "@/lib/types";
+import type { BoardAttachment, BoardPostRow } from "@/lib/types";
 import { FilePicker, RichTextEditor, sanitizeBoardHtml, stripHtml } from "./board-editor";
 
 const categories = ["일반", "공지", "자료", "질문"];
 
-export function BoardPostForm() {
+export function BoardPostForm({ initialPost }: { initialPost?: BoardPostRow }) {
   const router = useRouter();
-  const [title, setTitle] = useState("");
-  const [category, setCategory] = useState("일반");
-  const [content, setContent] = useState("");
-  const [attachments, setAttachments] = useState<BoardAttachment[]>([]);
+  const [title, setTitle] = useState(initialPost?.title ?? "");
+  const [category, setCategory] = useState(initialPost?.category ?? "일반");
+  const [content, setContent] = useState(initialPost?.content ?? "");
+  const [attachments, setAttachments] = useState<BoardAttachment[]>(
+    initialPost?.attachments ?? [],
+  );
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const isEditing = Boolean(initialPost);
 
   function savePost(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -43,8 +46,8 @@ export function BoardPostForm() {
     }
 
     startTransition(async () => {
-      const response = await fetch("/api/board", {
-        method: "POST",
+      const response = await fetch(isEditing ? `/api/board/${initialPost?.id}` : "/api/board", {
+        method: isEditing ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title,
@@ -69,7 +72,9 @@ export function BoardPostForm() {
     <div className="mx-auto w-full max-w-[1840px] space-y-4">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-[#0d1b3d]">게시글 작성</h1>
+          <h1 className="text-2xl font-bold text-[#0d1b3d]">
+            {isEditing ? "게시글 수정" : "게시글 작성"}
+          </h1>
         </div>
         <Button asChild variant="outline">
           <Link href="/board">
@@ -125,11 +130,11 @@ export function BoardPostForm() {
 
         <div className="flex justify-end gap-2 border-t border-[#edf2f7] pt-4">
           <Button asChild variant="outline">
-            <Link href="/board">취소</Link>
+            <Link href={isEditing ? `/board/${initialPost?.id}` : "/board"}>취소</Link>
           </Button>
           <Button type="submit" disabled={isPending}>
             <Pencil className="size-4" />
-            {isPending ? "등록 중" : "등록"}
+            {isPending ? "저장 중" : isEditing ? "저장" : "등록"}
           </Button>
         </div>
       </form>

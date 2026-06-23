@@ -8,7 +8,7 @@ export default async function BoardPostDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireAppUser();
+  const user = await requireAppUser();
   const { id } = await params;
   const post = await getBoardPostDetail(id);
 
@@ -16,5 +16,5 @@ export default async function BoardPostDetailPage({
     notFound();
   }
 
-  return <BoardDetail post={post} />;
+  return <BoardDetail post={post} currentUser={user} />;
 }
