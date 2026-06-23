@@ -52,7 +52,6 @@
 
 :root {
   --app-bottom-safe-space: 0px;
-  --desktop-view-toggle-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
   --background: oklch(0.982 0.007 255);
   --foreground: oklch(0.19 0.04 260);
   --card: oklch(1 0 0);
@@ -161,6 +160,7 @@
   font-size: 12px;
 }
 
+.desktop-view-footer,
 .desktop-view-toggle {
   display: none;
 }
@@ -168,7 +168,11 @@
 @media (max-width: 1023.98px) {
   :root {
     --app-bottom-safe-space: calc(5.75rem + env(safe-area-inset-bottom, 0px));
-    --desktop-view-toggle-bottom: calc(5.25rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .desktop-view-footer {
+    display: flex;
+    justify-content: center;
   }
 
   .desktop-view-toggle {
@@ -179,7 +183,11 @@
 @media (hover: none) and (pointer: coarse) {
   :root {
     --app-bottom-safe-space: calc(5.75rem + env(safe-area-inset-bottom, 0px));
-    --desktop-view-toggle-bottom: calc(5.25rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .desktop-view-footer {
+    display: flex;
+    justify-content: center;
   }
 
   .desktop-view-toggle {

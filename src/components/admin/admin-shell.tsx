@@ -166,7 +166,9 @@ export function AdminShell({
           {children}
         </main>
       </div>
-      <DesktopViewToggle />
+      <footer className="desktop-view-footer fixed inset-x-0 bottom-0 z-40 border-t border-[#d8e0ea] bg-white/95 px-4 py-2 pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))] shadow-[0_-12px_32px_rgba(15,28,48,0.10)] backdrop-blur">
+        <DesktopViewToggle />
+      </footer>
     </div>
   );
 }
@@ -192,7 +194,7 @@ function DesktopViewToggle() {
     <button
       type="button"
       onClick={() => setDesktopViewPreference(!desktopView)}
-      className="desktop-view-toggle fixed right-4 bottom-[var(--desktop-view-toggle-bottom)] z-50 inline-flex h-11 items-center gap-2 rounded-full border border-[#c9d8ee] bg-white/95 px-4 text-xs font-bold text-[#1f4f9f] shadow-[0_12px_32px_rgba(15,28,48,0.18)] backdrop-blur transition hover:border-[#86a9e8] hover:bg-[#eef4ff] focus-visible:ring-2 focus-visible:ring-[#2f70dc]/30 focus-visible:outline-none"
+      className="desktop-view-toggle mx-auto h-11 items-center justify-center gap-2 rounded-full border border-[#c9d8ee] bg-white px-4 text-xs font-bold text-[#1f4f9f] shadow-[0_8px_22px_rgba(15,28,48,0.12)] transition hover:border-[#86a9e8] hover:bg-[#eef4ff] focus-visible:ring-2 focus-visible:ring-[#2f70dc]/30 focus-visible:outline-none"
       aria-pressed={desktopView}
     >
       <span className="grid size-7 place-items-center rounded-full bg-[#eaf1fd] text-[#2f70dc]">
