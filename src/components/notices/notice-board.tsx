@@ -303,11 +303,11 @@ export function NoticeBoard({
               </div>
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsEditorOpen(false)}>
-                취소
-              </Button>
               <Button type="submit" disabled={isPending}>
                 {isPending ? "저장 중" : "저장"}
+              </Button>
+              <Button type="button" variant="outline" onClick={() => setIsEditorOpen(false)}>
+                취소
               </Button>
             </DialogFooter>
           </form>

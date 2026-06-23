@@ -603,7 +603,7 @@ export function WorkDiaryGrid({
 
   return (
     <div className="crm-erp-surface mx-auto flex h-[calc(100vh-5.5rem)] max-w-[1840px] flex-col gap-3 overflow-hidden">
-      <div>
+      <div className="hidden md:block">
         <div>
           <h1 className="text-base font-semibold tracking-tight text-[#0d1b3d]">업무일지</h1>
         </div>

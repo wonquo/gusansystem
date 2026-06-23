@@ -455,11 +455,11 @@ function AccountMenu({
             {error ? <p className="text-sm text-destructive">{error}</p> : null}
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setIsProfileOpen(false)}>
-              취소
-            </Button>
             <Button type="submit" disabled={isPending}>
               {isPending ? "저장 중" : "저장"}
+            </Button>
+            <Button type="button" variant="outline" onClick={() => setIsProfileOpen(false)}>
+              취소
             </Button>
           </DialogFooter>
         </form>

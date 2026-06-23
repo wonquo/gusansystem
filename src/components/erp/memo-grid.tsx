@@ -279,7 +279,7 @@ export function MemoGrid({
 
   return (
     <div className="crm-erp-surface mx-auto flex h-[calc(100vh-5.5rem)] max-w-[1840px] flex-col gap-3 overflow-hidden">
-      <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+      <div className="hidden flex-col gap-2 md:flex md:flex-row md:items-end md:justify-between">
         <div>
           <h1 className="text-base font-semibold tracking-tight text-[#0d1b3d]">메모</h1>
         </div>
@@ -566,22 +566,41 @@ function MemoDialog({
         </div>
 
         <div className="shrink-0 border-t border-[#d8e0ea] bg-white px-4 pt-3 pb-5">
-          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
               {draft.id && canDelete ? (
-                <Button type="button" variant="destructive" size="sm" onClick={onDelete} disabled={isPending}>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  className="h-11 w-full sm:h-7 sm:w-auto"
+                  onClick={onDelete}
+                  disabled={isPending}
+                >
                   <Trash2 className="size-3.5" />
                   삭제
                 </Button>
               ) : null}
             </div>
-            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)}>
-                닫기
-              </Button>
-              <Button type="button" size="sm" onClick={onSave} disabled={isPending || !canSave || !draft.title.trim()}>
+            <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+              <Button
+                type="button"
+                size="sm"
+                className="h-11 w-full sm:h-7 sm:w-auto"
+                onClick={onSave}
+                disabled={isPending || !canSave || !draft.title.trim()}
+              >
                 {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
                 저장
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-11 w-full sm:h-7 sm:w-auto"
+                onClick={() => onOpenChange(false)}
+              >
+                닫기
               </Button>
             </div>
           </div>

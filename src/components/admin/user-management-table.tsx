@@ -379,9 +379,9 @@ export function UserManagementTable({
     <div className="crm-erp-surface mx-auto min-h-[calc(100vh-9rem)] max-w-[1680px]">
       <section className="min-w-0 space-y-3">
         <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-          <h1 className="text-base font-semibold tracking-tight text-[#0d1b3d]">사용자 목록</h1>
+          <h1 className="hidden text-base font-semibold tracking-tight text-[#0d1b3d] md:block">사용자 목록</h1>
           <div className="flex items-center gap-2">
-            <Badge variant="outline" className="h-7 border-[#cfd9e7] bg-white px-2.5 text-xs">
+            <Badge variant="outline" className="hidden h-7 border-[#cfd9e7] bg-white px-2.5 text-xs md:inline-flex">
               {filteredUsers.length.toLocaleString()}건
             </Badge>
             <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
@@ -703,11 +703,11 @@ function UserForm<TForm extends CreateUserForm | EditUserForm>({
             삭제
           </Button>
         ) : null}
-        <Button type="button" variant="outline" onClick={onCancel}>
-          취소
-        </Button>
         <Button type="submit" disabled={isSaving}>
           {isSaving ? "저장 중" : mode === "create" ? "추가" : "저장"}
+        </Button>
+        <Button type="button" variant="outline" onClick={onCancel}>
+          취소
         </Button>
       </DialogFooter>
     </form>

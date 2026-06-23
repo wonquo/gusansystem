@@ -17,6 +17,7 @@ import {
   Trash2,
   TrendingUp,
   WalletCards,
+  X,
 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -91,9 +92,11 @@ const PAYMENT_STATUS_EMPTY = "__empty_payment_status__";
 export function ProjectDetail({
   row,
   helpers,
+  onClose,
 }: {
   row: Record<string, unknown>;
   helpers: ErpGridDetailHelpers;
+  onClose: () => void;
 }) {
   const isNewProject = row.__isNew === true;
   const [projectName, setProjectName] = useState(() => String(row.projectName ?? ""));
@@ -713,19 +716,44 @@ export function ProjectDetail({
       </div>
 
       <div className="shrink-0 border-t border-[#d8e0ea] bg-white px-4 py-3">
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           {isNewProject ? (
             <span />
           ) : (
-            <Button type="button" variant="destructive" size="sm" onClick={deleteCurrentProject} disabled={isPending}>
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              className="h-11 w-full sm:h-7 sm:w-auto"
+              onClick={deleteCurrentProject}
+              disabled={isPending}
+            >
               <Trash2 className="size-3.5" />
               삭제
             </Button>
           )}
-          <Button type="button" size="sm" onClick={saveProject} disabled={isPending || !projectName.trim()}>
-            {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
-            {isNewProject ? "등록" : "저장"}
-          </Button>
+          <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+            <Button
+              type="button"
+              size="sm"
+              className="h-11 w-full sm:h-7 sm:w-auto"
+              onClick={saveProject}
+              disabled={isPending || !projectName.trim()}
+            >
+              {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
+              {isNewProject ? "등록" : "저장"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-11 w-full sm:h-7 sm:w-auto"
+              onClick={onClose}
+            >
+              <X className="size-3.5" />
+              닫기
+            </Button>
+          </div>
         </div>
       </div>
     </div>

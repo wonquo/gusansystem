@@ -158,9 +158,11 @@ export function NoticePopup() {
                   </>
                 ) : null}
               </div>
-              <div className="flex flex-col-reverse gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
-                <Button type="button" variant="outline" onClick={dismissToday}>
-                  오늘 보지 않기
+              <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
+                <Button asChild className="bg-[#1f6fff] text-white hover:bg-[#195ed8]">
+                  <Link href={`/notices/${current.id}`} onClick={() => setIsOpen(false)}>
+                    공지 조회
+                  </Link>
                 </Button>
                 <Button type="button" variant="outline" onClick={dismissCurrent}>
                   이 공지 닫기
@@ -168,10 +170,8 @@ export function NoticePopup() {
                 <Button type="button" variant="outline" onClick={dismissAll}>
                   모두 닫기
                 </Button>
-                <Button asChild className="bg-[#1f6fff] text-white hover:bg-[#195ed8]">
-                  <Link href={`/notices/${current.id}`} onClick={() => setIsOpen(false)}>
-                    공지 조회
-                  </Link>
+                <Button type="button" variant="outline" onClick={dismissToday}>
+                  오늘 보지 않기
                 </Button>
               </div>
             </DialogFooter>

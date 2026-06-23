@@ -50,11 +50,11 @@ export function BoardList({ posts }: { posts: BoardPostRow[] }) {
   return (
     <div className="crm-erp-surface mx-auto grid max-w-[1840px] gap-3">
       <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-        <div className="min-w-0">
+        <div className="hidden min-w-0 md:block">
           <h1 className="text-base font-semibold tracking-tight text-[#0d1b3d]">게시판</h1>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="outline" className="h-7 border-[#cfd9e7] bg-white px-2.5 text-xs">
+          <Badge variant="outline" className="hidden h-7 border-[#cfd9e7] bg-white px-2.5 text-xs md:inline-flex">
             {filteredPosts.length.toLocaleString()}건
           </Badge>
           <Badge variant="outline" className="h-7 border-[#cfd9e7] bg-white px-2.5 text-xs">

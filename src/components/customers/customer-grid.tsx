@@ -1788,9 +1788,6 @@ export function CustomerGrid({
             ) : null}
 
             <DialogFooter className="sticky bottom-0 mx-0 mb-0 rounded-none border-t border-[#d8e0ea] bg-white/95 px-5 backdrop-blur">
-              <DialogClose asChild>
-                <Button variant="outline">닫기</Button>
-              </DialogClose>
               <Button
                 onClick={() => {
                   void saveDetailChanges();
@@ -1800,6 +1797,9 @@ export function CustomerGrid({
                 {isSavingDetailDialog ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
                 {isCreatingDetailCustomer ? "추가" : "저장"}
               </Button>
+              <DialogClose asChild>
+                <Button variant="outline">닫기</Button>
+              </DialogClose>
             </DialogFooter>
           </div>
           <Button
@@ -1867,13 +1867,13 @@ export function CustomerGrid({
             </div>
           </div>
           <DialogFooter>
-            <DialogClose asChild>
-              <Button variant="outline">취소</Button>
-            </DialogClose>
             <Button onClick={sendSmsMessage} disabled={!smsRecipients.length || !trimmedSmsMessage}>
               <Send className="size-4" />
               전송
             </Button>
+            <DialogClose asChild>
+              <Button variant="outline">취소</Button>
+            </DialogClose>
           </DialogFooter>
         </DialogContent>
       </Dialog>

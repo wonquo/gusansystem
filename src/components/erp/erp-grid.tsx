@@ -436,7 +436,7 @@ export function ErpGrid({
       )}
     >
       <section className="flex min-h-0 min-w-0 flex-col gap-3">
-        <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+        <div className="hidden flex-col gap-2 md:flex md:flex-row md:items-end md:justify-between">
           <div>
             <h1 className="text-base font-semibold tracking-tight text-[#0d1b3d]">{title}</h1>
           </div>
@@ -668,6 +668,7 @@ export function ErpGrid({
                   key={String(selected.id)}
                   row={selected}
                   helpers={{ replaceRow, removeRow, reloadRows }}
+                  onClose={() => setIsDetailDialogOpen(false)}
                 />
               ) : (
                 <p className="px-4 py-6 text-sm text-[#7b8798]">행을 선택하면 상세 정보가 표시됩니다.</p>

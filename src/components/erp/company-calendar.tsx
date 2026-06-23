@@ -1204,19 +1204,19 @@ export function CompanyCalendar({
 
             <DialogFooter>
               <Button
+                className="bg-[#2f70dc] text-white hover:bg-[#1d5fc2]"
+                disabled={isPending}
+                type="submit"
+              >
+                {isPending ? "저장 중" : "저장"}
+              </Button>
+              <Button
                 disabled={isPending}
                 onClick={() => setIsCategoryManagerOpen(false)}
                 type="button"
                 variant="outline"
               >
                 취소
-              </Button>
-              <Button
-                className="bg-[#2f70dc] text-white hover:bg-[#1d5fc2]"
-                disabled={isPending}
-                type="submit"
-              >
-                {isPending ? "저장 중" : "저장"}
               </Button>
             </DialogFooter>
           </form>
@@ -1286,7 +1286,7 @@ export function CompanyCalendar({
                 </div>
               </div>
 
-              <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
+              <div className="grid min-w-0 gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
                 <div className="grid min-w-0 gap-1.5">
                   <Label htmlFor="calendar-start-date">시작일</Label>
                   <Input
@@ -1320,7 +1320,7 @@ export function CompanyCalendar({
                 </div>
               </div>
 
-              <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
+              <div className="grid min-w-0 gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
                 <div className="grid min-w-0 gap-1.5">
                   <Label htmlFor="calendar-end-date">종료일</Label>
                   <Input
@@ -1461,19 +1461,11 @@ export function CompanyCalendar({
                   </Button>
                 ) : null}
               </div>
-              <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-row">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => handleFormOpenChange(false)}
-                  className="h-11 sm:h-8"
-                >
-                  취소
-                </Button>
+              <div className="flex flex-col gap-2 sm:flex-row">
                 <Button
                   type="submit"
                   disabled={isPending}
-                  className="h-11 gap-2 bg-[#2f70dc] text-white hover:bg-[#1d5fc2] sm:h-8"
+                  className="h-11 w-full gap-2 bg-[#2f70dc] text-white hover:bg-[#1d5fc2] sm:h-8 sm:w-auto"
                 >
                   <Send className="size-4" />
                   {isPending
@@ -1483,6 +1475,14 @@ export function CompanyCalendar({
                     : editingEventId
                       ? "저장"
                       : "등록"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => handleFormOpenChange(false)}
+                  className="h-11 w-full sm:h-8 sm:w-auto"
+                >
+                  취소
                 </Button>
               </div>
             </DialogFooter>
