@@ -155,8 +155,7 @@ export function WorkDiaryGrid({
   const [rows, setRows] = useState(() => toGridRows(initialRows, initialWorkTypes));
   const rowsRef = useRef(rows);
   const gridApiRef = useRef<GridApi<WorkDiaryGridRow> | null>(null);
-  const shouldSelectPreferredRowRef = useRef(false);
-  const shouldFocusTodayPrimaryWorkRef = useRef(false);
+  const pendingSelectionDateRef = useRef<string | null>(null);
   const [destinations, setDestinations] = useState(initialDestinations);
   const [workTypes, setWorkTypes] = useState(initialWorkTypes);
   const [month, setMonth] = useState(initialMonth);
@@ -179,18 +178,12 @@ export function WorkDiaryGrid({
   }, [rows]);
 
   useLayoutEffect(() => {
-    if (shouldFocusTodayPrimaryWorkRef.current) {
-      shouldFocusTodayPrimaryWorkRef.current = false;
-      shouldSelectPreferredRowRef.current = false;
-      focusTodayPrimaryWorkCell(gridApiRef.current, rows, todayText);
-      return;
-    }
+    const pendingSelectionDate = pendingSelectionDateRef.current;
+    if (!pendingSelectionDate) return;
 
-    if (!shouldSelectPreferredRowRef.current) return;
-
-    shouldSelectPreferredRowRef.current = false;
-    selectPreferredRow(gridApiRef.current, rows, todayText);
-  }, [rows, todayText]);
+    pendingSelectionDateRef.current = null;
+    selectWorkDateRow(gridApiRef.current, pendingSelectionDate);
+  }, [rows]);
 
   const destinationNameById = useMemo(() => {
     const map = new Map<string, string>();
@@ -319,7 +312,7 @@ export function WorkDiaryGrid({
   );
 
   const reloadRows = useCallback(
-    (nextMonth = month, nextUserId = selectedUserId) => {
+    (nextMonth = month, nextUserId = selectedUserId, nextSelectionDate: string | null = null) => {
       startTransition(async () => {
         try {
           setError(null);
@@ -333,7 +326,7 @@ export function WorkDiaryGrid({
             throw new Error(body.error ?? "업무일지 조회에 실패했습니다.");
           }
           const nextRows = toGridRows(body.rows ?? [], workTypes);
-          shouldSelectPreferredRowRef.current = true;
+          pendingSelectionDateRef.current = nextSelectionDate;
           setRows(nextRows);
           setNotice(null);
         } catch (fetchError) {
@@ -397,7 +390,7 @@ export function WorkDiaryGrid({
           throw new Error(body.error ?? "업무일지 저장에 실패했습니다.");
         }
         setNotice(null);
-        reloadRows(month, selectedUserId);
+        reloadRows(month, selectedUserId, row.workDate);
       } catch (saveError) {
         setError(saveError instanceof Error ? saveError.message : "업무일지 저장에 실패했습니다.");
       }
@@ -433,7 +426,7 @@ export function WorkDiaryGrid({
           throw new Error(body.error ?? "업무일지 저장에 실패했습니다.");
         }
         setNotice(null);
-        reloadRows(month, selectedUserId);
+        reloadRows(month, selectedUserId, changedRows[0]?.workDate ?? null);
       } catch (saveError) {
         setRows(previousRows);
         rowsRef.current = previousRows;
@@ -456,6 +449,8 @@ export function WorkDiaryGrid({
       return;
     }
 
+    const focusedWorkDate = getFocusedWorkDate(gridApiRef.current);
+
     startTransition(async () => {
       try {
         setError(null);
@@ -469,7 +464,7 @@ export function WorkDiaryGrid({
           throw new Error(body.error ?? "업무일지 저장에 실패했습니다.");
         }
         setNotice("업무일지를 저장했습니다.");
-        reloadRows(month, selectedUserId);
+        reloadRows(month, selectedUserId, focusedWorkDate);
       } catch (saveError) {
         setError(saveError instanceof Error ? saveError.message : "업무일지 저장에 실패했습니다.");
       }
@@ -1944,35 +1939,22 @@ function selectPreferredRow(
   if (!api || rows.length === 0) return;
 
   const preferredIndex = getDisplayedIndexByWorkDate(api, todayText) ?? 0;
-  window.requestAnimationFrame(() => {
-    api.ensureIndexVisible(preferredIndex, "middle");
-    api.getDisplayedRowAtIndex(preferredIndex)?.setSelected(true);
-  });
+  selectDisplayedRow(api, preferredIndex);
 }
 
-function focusTodayPrimaryWorkCell(
-  api: GridApi<WorkDiaryGridRow> | null,
-  rows: WorkDiaryGridRow[],
-  todayText: string,
-) {
-  if (!api || rows.length === 0) return;
+function selectWorkDateRow(api: GridApi<WorkDiaryGridRow> | null, workDate: string) {
+  if (!api) return;
 
-  const todayIndex = getDisplayedIndexByWorkDate(api, todayText);
-  if (todayIndex === null) return;
+  const rowIndex = getDisplayedIndexByWorkDate(api, workDate);
+  if (rowIndex === null) return;
 
+  selectDisplayedRow(api, rowIndex);
+}
+
+function selectDisplayedRow(api: GridApi<WorkDiaryGridRow>, rowIndex: number) {
   window.requestAnimationFrame(() => {
-    api.stopEditing();
-    api.ensureIndexVisible(todayIndex, "middle");
-    api.ensureColumnVisible("primaryWork");
-    api.getDisplayedRowAtIndex(todayIndex)?.setSelected(true);
-    api.setFocusedCell(todayIndex, "primaryWork");
-
-    window.requestAnimationFrame(() => {
-      api.startEditingCell({
-        rowIndex: todayIndex,
-        colKey: "primaryWork",
-      });
-    });
+    api.ensureIndexVisible(rowIndex, "middle");
+    api.getDisplayedRowAtIndex(rowIndex)?.setSelected(true);
   });
 }
 
@@ -1983,6 +1965,13 @@ function getDisplayedIndexByWorkDate(api: GridApi<WorkDiaryGridRow>, workDate: s
     rowIndex = node.rowIndex ?? null;
   });
   return rowIndex;
+}
+
+function getFocusedWorkDate(api: GridApi<WorkDiaryGridRow> | null) {
+  const focusedCell = api?.getFocusedCell();
+  if (!api || !focusedCell) return null;
+
+  return api.getDisplayedRowAtIndex(focusedCell.rowIndex)?.data?.workDate ?? null;
 }
 
 function toSavePayload(row: WorkDiaryGridRow) {
