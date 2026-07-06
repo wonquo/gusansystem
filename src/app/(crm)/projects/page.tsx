@@ -13,7 +13,6 @@ export default async function ProjectsPage() {
       title="프로젝트 관리"
       rows={rows}
       uploadType="projects"
-      uploadEnabled
       createEnabled={canCreateProjects}
       detailType="project"
       columns={[

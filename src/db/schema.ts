@@ -18,6 +18,7 @@ export const userStatusEnum = pgEnum("user_status", ["active", "invited", "disab
 export const customerOptionTypeEnum = pgEnum("customer_option_type", ["source", "status"]);
 export const employeeStatusEnum = pgEnum("employee_status", ["active", "inactive"]);
 export const importStatusEnum = pgEnum("import_status", ["previewed", "completed", "failed"]);
+export const projectScheduleTypeEnum = pgEnum("project_schedule_type", ["main", "sub"]);
 export const projectItemTypeEnum = pgEnum("project_item_type", [
   "contract",
   "payment",
@@ -158,6 +159,87 @@ export const projectItems = pgTable(
       table.sourceSheetName,
       table.sourceRowNumber,
     ),
+  ],
+);
+
+export const projectSchedules = pgTable(
+  "project_schedules",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    projectType: projectScheduleTypeEnum("project_type").notNull(),
+    projectCode: text("project_code"),
+    projectName: text("project_name").notNull(),
+    taskDescription: text("task_description"),
+    destinationName: text("destination_name"),
+    controlManagerName: text("control_manager_name"),
+    facilityManagerName: text("facility_manager_name"),
+    managerName: text("manager_name"),
+    projectMonth: text("project_month"),
+    status: text("status"),
+    expenseMemo: text("expense_memo"),
+    expenseAmount: integer("expense_amount").notNull().default(0),
+    memo: text("memo"),
+    sourceSheetName: text("source_sheet_name"),
+    sourceRowNumber: integer("source_row_number"),
+    sourceSection: text("source_section"),
+    rawData: jsonb("raw_data").notNull().default({}),
+    importBatchId: uuid("import_batch_id").references(() => importBatches.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("project_schedules_type_idx").on(table.projectType),
+    index("project_schedules_code_idx").on(table.projectCode),
+    index("project_schedules_name_idx").on(table.projectName),
+    index("project_schedules_status_idx").on(table.status),
+    index("project_schedules_month_idx").on(table.projectMonth),
+    index("project_schedules_updated_idx").on(table.updatedAt),
+    uniqueIndex("project_schedules_source_row_idx").on(table.sourceSheetName, table.sourceRowNumber),
+  ],
+);
+
+export const projectScheduleStatusOptions = pgTable(
+  "project_schedule_status_options",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    label: text("label").notNull(),
+    color: text("color").notNull().default("#2f70dc"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("project_schedule_status_options_label_idx").on(table.label),
+    index("project_schedule_status_options_sort_idx").on(table.sortOrder),
+  ],
+);
+
+export const projectScheduleItems = pgTable(
+  "project_schedule_items",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    projectScheduleId: uuid("project_schedule_id")
+      .notNull()
+      .references(() => projectSchedules.id, { onDelete: "cascade" }),
+    scheduleDate: date("schedule_date"),
+    scheduleText: text("schedule_text").notNull(),
+    taskDescription: text("task_description"),
+    managerName: text("manager_name"),
+    status: text("status"),
+    memo: text("memo"),
+    sourceLineNumber: integer("source_line_number").notNull().default(0),
+    sortOrder: integer("sort_order").notNull().default(0),
+    rawData: jsonb("raw_data").notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("project_schedule_items_project_idx").on(table.projectScheduleId),
+    index("project_schedule_items_date_idx").on(table.scheduleDate),
+    index("project_schedule_items_status_idx").on(table.status),
   ],
 );
 
@@ -457,6 +539,15 @@ export const memos = pgTable(
   ],
 );
 
+export const whiteboardStates = pgTable("whiteboard_states", {
+  id: text("id").primaryKey(),
+  textContent: text("text_content").notNull().default(""),
+  canvasDataUrl: text("canvas_data_url").notNull().default(""),
+  updatedBy: uuid("updated_by").references(() => appUsers.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 export const contacts = pgTable(
   "contacts",
   {
@@ -658,6 +749,7 @@ export const appUsersRelations = relations(appUsers, ({ many }) => ({
   boardPosts: many(boardPosts),
   boardComments: many(boardComments),
   memos: many(memos),
+  whiteboardStates: many(whiteboardStates),
   contacts: many(contacts),
   calendarEvents: many(calendarEvents),
   workDiaryEntries: many(workDiaryEntries),
@@ -705,6 +797,21 @@ export const projectItemsRelations = relations(projectItems, ({ one }) => ({
   }),
 }));
 
+export const projectSchedulesRelations = relations(projectSchedules, ({ one, many }) => ({
+  batch: one(importBatches, {
+    fields: [projectSchedules.importBatchId],
+    references: [importBatches.id],
+  }),
+  items: many(projectScheduleItems),
+}));
+
+export const projectScheduleItemsRelations = relations(projectScheduleItems, ({ one }) => ({
+  projectSchedule: one(projectSchedules, {
+    fields: [projectScheduleItems.projectScheduleId],
+    references: [projectSchedules.id],
+  }),
+}));
+
 export const importBatchesRelations = relations(importBatches, ({ one, many }) => ({
   importer: one(appUsers, {
     fields: [importBatches.importedBy],
@@ -713,6 +820,7 @@ export const importBatchesRelations = relations(importBatches, ({ one, many }) =
   rows: many(importRows),
   payrollSlips: many(payrollSlips),
   projects: many(projects),
+  projectSchedules: many(projectSchedules),
 }));
 
 export const importRowsRelations = relations(importRows, ({ one }) => ({
@@ -782,6 +890,13 @@ export const boardCommentsRelations = relations(boardComments, ({ one }) => ({
 export const memosRelations = relations(memos, ({ one }) => ({
   author: one(appUsers, {
     fields: [memos.createdBy],
+    references: [appUsers.id],
+  }),
+}));
+
+export const whiteboardStatesRelations = relations(whiteboardStates, ({ one }) => ({
+  updater: one(appUsers, {
+    fields: [whiteboardStates.updatedBy],
     references: [appUsers.id],
   }),
 }));

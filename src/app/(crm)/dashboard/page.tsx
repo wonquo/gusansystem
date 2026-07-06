@@ -4,6 +4,8 @@ import { requireAppUser } from "@/lib/auth";
 import { listBoardPosts } from "@/lib/board";
 import { listCalendarEvents } from "@/lib/calendar";
 import { listWorkDiaryRows } from "@/lib/work-diaries";
+import { getWhiteboardState } from "@/lib/whiteboard";
+import { WhiteBoardCard } from "@/components/dashboard/white-board-card";
 import type { BoardPostRow, CalendarEventRow, WorkDiaryRow } from "@/lib/types";
 
 const DAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
@@ -27,7 +29,7 @@ export default async function DashboardPage() {
   const today = getKoreaDateValue();
   const monthStart = today.slice(0, 7);
   const workDiaryMonth = monthStart;
-  const [boardPosts, calendarEvents, workDiaryRows] = await Promise.all([
+  const [boardPosts, calendarEvents, workDiaryRows, whiteboardState] = await Promise.all([
     listBoardPosts(),
     listCalendarEvents(),
     listWorkDiaryRows({
@@ -37,6 +39,7 @@ export default async function DashboardPage() {
       month: workDiaryMonth,
       targetUserId: user.id,
     }),
+    getWhiteboardState(),
   ]);
   const monthCells = createMonthCells(monthStart);
   const selectedEvents = calendarEvents
@@ -180,6 +183,10 @@ export default async function DashboardPage() {
               <WorkDiaryStat label="오늘" value={workDiaryStats.isTodayWritten ? "작성" : "미작성"} />
             </div>
           </div>
+        </DashboardCard>
+
+        <DashboardCard className="min-h-[420px]">
+          <WhiteBoardCard initialState={whiteboardState} />
         </DashboardCard>
       </section>
     </main>

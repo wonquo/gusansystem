@@ -8,6 +8,7 @@ import {
   ModuleRegistry,
   type ColDef,
   type ICellRendererParams,
+  type RowDoubleClickedEvent,
 } from "ag-grid-community";
 import { KeyRound, Loader2, Plus, RefreshCw, Search, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -222,31 +223,6 @@ export function UserManagementTable({
         width: 150,
         cellClass: "erp-grid-cell erp-grid-cell-date",
         valueFormatter: (params) => formatDateTime(params.value ?? null),
-      },
-      {
-        colId: "actions",
-        headerName: "관리",
-        width: 92,
-        pinned: "right",
-        sortable: false,
-        filter: false,
-        cellRenderer: (params: ICellRendererParams<AppUserRow>) => {
-          const row = params.data;
-          return row ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-7"
-              onClick={(event) => {
-                event.stopPropagation();
-                openEditDialog(row);
-              }}
-            >
-              수정
-            </Button>
-          ) : null;
-        },
       },
     ],
     [],
@@ -486,6 +462,11 @@ export function UserManagementTable({
               rowData={filteredUsers}
               columnDefs={columnDefs}
               getRowId={(params) => params.data.id}
+              onRowDoubleClicked={(event: RowDoubleClickedEvent<AppUserRow>) => {
+                if (event.data) {
+                  openEditDialog(event.data);
+                }
+              }}
               rowSelection="single"
               animateRows={false}
               theme="legacy"

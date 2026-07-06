@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { hasDatabaseUrl } from "@/db";
 import { parseGenericWorkbook } from "@/lib/erp/generic-import";
 import { parsePayrollWorkbook } from "@/lib/erp/payroll-import";
+import { parseProjectScheduleWorkbook } from "@/lib/erp/project-schedule-import";
 import { parseProjectWorkbook } from "@/lib/erp/project-import";
 import { decryptWorkbookBuffer, WorkbookDecryptionError } from "@/lib/erp/excel-decryption";
 import {
@@ -9,6 +10,7 @@ import {
   saveGenericRowsImport,
   savePayrollImport,
   saveProjectImport,
+  saveProjectScheduleImport,
   saveUnsupportedImport,
 } from "@/lib/erp/data";
 import { jsonError, requireErpPermission } from "@/lib/erp/api";
@@ -31,7 +33,9 @@ export async function POST(request: Request, context: RouteContext) {
     const menuKey =
       type === "payroll-slips"
         ? "payroll"
-        : type === "projects"
+        : type === "project-schedules"
+          ? "project-schedules"
+          : type === "projects"
           ? "projects"
           : type === "tax-invoices"
             ? "tax-invoices"
@@ -105,6 +109,49 @@ export async function POST(request: Request, context: RouteContext) {
           sheetName: result.sheets[0] ?? "Workbook",
           importedBy: guard.user.id,
           projects: result.projects,
+          errors: result.errors,
+        });
+        return NextResponse.json({
+          batch,
+          detectedType: result.detectedType,
+          sheets: result.sheets,
+          previewRows,
+          errors: result.errors.map((error) => ({ message: error.message })),
+        });
+      }
+
+      if (type === "project-schedules") {
+        const result = await parseProjectScheduleWorkbook(buffer);
+        const previewRows = result.rows.slice(0, 50).map((row) => ({
+          projectType: row.projectType,
+          sourceSheetName: row.sheetName,
+          sourceRowNumber: row.sourceRowNumber,
+          projectCode: row.projectCode,
+          projectName: row.projectName,
+          taskDescription: row.taskDescription,
+          destinationName: row.destinationName,
+          managerName: row.managerName,
+          projectMonth: row.projectMonth,
+          status: row.status,
+          expenseMemo: row.expenseMemo,
+          itemCount: row.items.length,
+        }));
+        if (action === "preview" || !hasDatabaseUrl()) {
+          return NextResponse.json({
+            fileName: file.name,
+            detectedType: result.detectedType,
+            sheets: result.sheets,
+            previewRows,
+            errors: result.errors.map((error) => ({ message: error.message })),
+            canCommit: Boolean(hasDatabaseUrl() && result.rows.length),
+          });
+        }
+        const batch = await saveProjectScheduleImport({
+          fileName: file.name,
+          importType: type,
+          sheetName: result.sheets[0] ?? "Workbook",
+          importedBy: guard.user.id,
+          rows: result.rows,
           errors: result.errors,
         });
         return NextResponse.json({

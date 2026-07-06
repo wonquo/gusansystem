@@ -7,12 +7,15 @@ import {
   boardComments,
   boardPosts,
   calendarEvents,
+  contacts,
   customerActivities,
   customers,
   employees,
   importBatches,
+  memos,
   noticeComments,
   notices,
+  workDiaryEntries,
 } from "@/db/schema";
 import { canManageUsers, getCurrentAppUser, hashPassword, serializeUser } from "@/lib/auth";
 import { getSafeErrorMessage, isUniqueViolation } from "@/lib/db-errors";
@@ -42,6 +45,7 @@ export async function PATCH(
     }
 
     const { id } = await context.params;
+    const requestedId = id.trim();
     const body = userUpdateSchema.parse(await request.json());
     const { employeeCode: rawEmployeeCode, password, ...userBody } = body;
     const patch = {
@@ -68,7 +72,13 @@ export async function PATCH(
     }
 
     const db = getDb();
-    const duplicateUser = await findDuplicateUser(db, id, body.loginId, body.email);
+    const targetUser = await findUserByIdOrLoginId(db, requestedId);
+    if (!targetUser) {
+      return NextResponse.json({ error: "사용자를 찾을 수 없습니다." }, { status: 404 });
+    }
+
+    const targetUserId = targetUser.id;
+    const duplicateUser = await findDuplicateUser(db, targetUserId, body.loginId, body.email);
     if (duplicateUser) {
       return NextResponse.json(
         { error: getDuplicateUserMessage(duplicateUser, body) },
@@ -79,7 +89,7 @@ export async function PATCH(
     const [updated] = await db
       .update(appUsers)
       .set({ ...patch, updatedAt: new Date() })
-      .where(eq(appUsers.id, id))
+      .where(eq(appUsers.id, targetUserId))
       .returning();
 
     if (!updated) {
@@ -88,7 +98,7 @@ export async function PATCH(
 
     let nextEmployeeCode: string | null = null;
     const currentEmployee = await db.query.employees.findFirst({
-      where: eq(employees.userId, id),
+      where: eq(employees.userId, targetUserId),
     });
 
     if (hasEmployeeCodePatch) {
@@ -109,7 +119,7 @@ export async function PATCH(
             .update(employees)
             .set({
               name: updated.name,
-              userId: id,
+              userId: targetUserId,
               status: "active",
               updatedAt: new Date(),
             })
@@ -130,7 +140,7 @@ export async function PATCH(
           await db.insert(employees).values({
             employeeCode,
             name: updated.name,
-            userId: id,
+            userId: targetUserId,
             status: "active",
           });
           nextEmployeeCode = employeeCode;
@@ -168,6 +178,29 @@ export async function PATCH(
 function normalizeEmployeeCode(value: string | undefined) {
   const code = value?.trim();
   return code ? code : null;
+}
+
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+async function findUserByIdOrLoginId(db: ReturnType<typeof getDb>, idOrLoginId: string) {
+  if (!idOrLoginId) {
+    return null;
+  }
+
+  if (isUuid(idOrLoginId)) {
+    const user = await db.query.appUsers.findFirst({
+      where: eq(appUsers.id, idOrLoginId),
+    });
+    if (user) {
+      return user;
+    }
+  }
+
+  return db.query.appUsers.findFirst({
+    where: eq(appUsers.loginId, idOrLoginId),
+  });
 }
 
 function findDuplicateUser(
@@ -230,36 +263,48 @@ export async function DELETE(
     }
 
     const { id } = await context.params;
-    if (currentUser.id === id) {
-      return NextResponse.json({ error: "현재 로그인한 사용자는 삭제할 수 없습니다." }, { status: 400 });
-    }
+    const requestedId = id.trim();
 
     if (!hasDatabaseUrl()) {
       return NextResponse.json({ ok: true });
     }
 
     const db = getDb();
+    const targetUser = await findUserByIdOrLoginId(db, requestedId);
+    if (!targetUser) {
+      return NextResponse.json({ error: "사용자를 찾을 수 없습니다." }, { status: 404 });
+    }
+
+    const targetUserId = targetUser.id;
+    if (currentUser.id === targetUserId) {
+      return NextResponse.json({ error: "현재 로그인한 사용자는 삭제할 수 없습니다." }, { status: 400 });
+    }
+
     const now = new Date();
 
     // FK 제약(ON DELETE 정책)이 환경마다 다를 수 있으므로, 사용자 계정을 참조하는
     // 모든 행의 참조를 먼저 해제한 뒤 삭제한다. neon-http 드라이버는 interactive
     // transaction을 지원하지 않으므로 batch로 한 번에 원자적으로 실행한다.
-    const [, , , , , , , , , deletedRows] = await db.batch([
-      db.update(employees).set({ userId: null, updatedAt: now }).where(eq(employees.userId, id)),
+    const batchResults = await db.batch([
+      db.update(employees).set({ userId: null, updatedAt: now }).where(eq(employees.userId, targetUserId)),
       db
         .update(customers)
         .set({ assignedUserId: null, updatedAt: now })
-        .where(eq(customers.assignedUserId, id)),
-      db.update(customerActivities).set({ createdBy: null }).where(eq(customerActivities.createdBy, id)),
-      db.update(notices).set({ createdBy: null }).where(eq(notices.createdBy, id)),
-      db.update(noticeComments).set({ createdBy: null }).where(eq(noticeComments.createdBy, id)),
-      db.update(boardPosts).set({ createdBy: null }).where(eq(boardPosts.createdBy, id)),
-      db.update(boardComments).set({ createdBy: null }).where(eq(boardComments.createdBy, id)),
-      db.update(calendarEvents).set({ createdBy: null }).where(eq(calendarEvents.createdBy, id)),
-      db.update(importBatches).set({ importedBy: null }).where(eq(importBatches.importedBy, id)),
-      db.delete(appUsers).where(eq(appUsers.id, id)).returning({ id: appUsers.id }),
+        .where(eq(customers.assignedUserId, targetUserId)),
+      db.update(customerActivities).set({ createdBy: null }).where(eq(customerActivities.createdBy, targetUserId)),
+      db.update(notices).set({ createdBy: null }).where(eq(notices.createdBy, targetUserId)),
+      db.update(noticeComments).set({ createdBy: null }).where(eq(noticeComments.createdBy, targetUserId)),
+      db.update(boardPosts).set({ createdBy: null }).where(eq(boardPosts.createdBy, targetUserId)),
+      db.update(boardComments).set({ createdBy: null }).where(eq(boardComments.createdBy, targetUserId)),
+      db.update(memos).set({ createdBy: null, updatedAt: now }).where(eq(memos.createdBy, targetUserId)),
+      db.update(contacts).set({ createdBy: null, updatedAt: now }).where(eq(contacts.createdBy, targetUserId)),
+      db.update(calendarEvents).set({ createdBy: null }).where(eq(calendarEvents.createdBy, targetUserId)),
+      db.update(importBatches).set({ importedBy: null }).where(eq(importBatches.importedBy, targetUserId)),
+      db.delete(workDiaryEntries).where(eq(workDiaryEntries.userId, targetUserId)),
+      db.delete(appUsers).where(eq(appUsers.id, targetUserId)).returning({ id: appUsers.id }),
     ]);
 
+    const deletedRows = batchResults.at(-1) as { id: string }[];
     const deleted = deletedRows[0];
     if (!deleted) {
       return NextResponse.json({ error: "사용자를 찾을 수 없습니다." }, { status: 404 });

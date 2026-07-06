@@ -440,9 +440,6 @@ export function ErpGrid({
           <div>
             <h1 className="text-base font-semibold tracking-tight text-[#0d1b3d]">{title}</h1>
           </div>
-          <Badge variant="outline" className="h-7 w-fit border-[#cfd9e7] bg-white px-2.5 text-xs">
-            {filteredRows.length.toLocaleString()}건
-          </Badge>
         </div>
 
         {isPayrollSearch ? (
@@ -557,12 +554,6 @@ export function ErpGrid({
                 </div>
               </div>
               <div className="flex flex-col gap-2 bg-[#f8fafc] p-2 lg:min-w-[176px] lg:flex-row lg:items-center lg:justify-end">
-                {createEnabled && isProjectDetail ? (
-                  <Button type="button" size="sm" onClick={openNewProjectDialog} disabled={isPending}>
-                    <Plus className="size-3.5" />
-                    신규 추가
-                  </Button>
-                ) : null}
                 {uploadEnabled ? (
                   <Button type="button" size="sm" onClick={openUploadDialog} disabled={isPending}>
                     <FileUp className="size-3.5" />
@@ -577,6 +568,26 @@ export function ErpGrid({
             </div>
           </div>
         )}
+
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <Badge variant="outline" className="h-7 w-fit border-[#cfd9e7] bg-white px-2.5 text-xs">
+            {filteredRows.length.toLocaleString()}건
+          </Badge>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {createEnabled && isProjectDetail ? (
+              <Button
+                type="button"
+                size="sm"
+                className="justify-center"
+                onClick={openNewProjectDialog}
+                disabled={isPending}
+              >
+                <Plus className="size-3.5" />
+                신규 추가
+              </Button>
+            ) : null}
+          </div>
+        </div>
 
         {notice ? (
           <Alert className="border-[#bfd2f5] bg-[#eef4ff] text-[#1f4f9f]">
@@ -653,7 +664,7 @@ export function ErpGrid({
 
       {isProjectDetail ? (
         <Dialog open={isDetailDialogOpen} onOpenChange={setIsDetailDialogOpen}>
-          <DialogContent className="flex max-h-[calc(100vh-32px)] w-[calc(100vw-32px)] max-w-[1500px] flex-col overflow-hidden p-0 sm:max-h-[88vh] sm:max-w-[1500px]">
+          <DialogContent className="flex max-h-[calc(100vh-32px)] w-[calc(100vw-24px)] !max-w-[1760px] flex-col gap-0 overflow-hidden p-0 sm:max-h-[88vh] xl:w-[calc(100vw-48px)]">
             <DialogHeader className="shrink-0 border-b border-[#d8e0ea] bg-[#f8fafc] px-4 py-3">
               <DialogTitle className="text-sm text-[#0d1b3d]">
                 {selected?.__isNew ? "신규 프로젝트" : "프로젝트 상세"}

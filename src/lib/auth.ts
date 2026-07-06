@@ -18,6 +18,7 @@ const EMPLOYEE_MENU_PERMISSIONS: Record<
   dashboard: ["view"],
   board: ["view", "create"],
   calendar: ["view", "create"],
+  "project-schedules": ["view"],
   "work-diaries": ["view", "create", "update", "delete"],
   memos: ["view", "create", "update", "delete"],
   contacts: ["view", "create", "update", "delete"],

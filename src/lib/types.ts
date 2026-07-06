@@ -99,6 +99,18 @@ export type CustomerOptionRow = {
   updatedAt: string | null;
 };
 
+export type ProjectScheduleStatusOptionRow = {
+  id: string;
+  label: string;
+  color: string;
+  sortOrder: number;
+  isActive: boolean;
+  usageCount: number;
+  isManaged: boolean;
+  createdAt: string | null;
+  updatedAt: string | null;
+};
+
 export type NoticeRow = {
   id: string;
   title: string;
@@ -171,6 +183,16 @@ export type MemoRow = {
   attachments: BoardAttachment[];
   createdBy: string | null;
   authorName: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type WhiteboardStateRow = {
+  id: string;
+  textContent: string;
+  canvasDataUrl: string;
+  updatedBy: string | null;
+  updatedByName: string | null;
   createdAt: string;
   updatedAt: string;
 };

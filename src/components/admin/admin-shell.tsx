@@ -10,10 +10,7 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  ClipboardList,
-  FileClock,
   FileText,
-  FileSpreadsheet,
   FolderKanban,
   Home,
   ImageIcon,
@@ -21,13 +18,11 @@ import {
   LogOut,
   Menu,
   MonitorSmartphone,
-  ReceiptText,
   ShieldCheck,
   Settings,
   StickyNote,
   UserCircle,
   UsersRound,
-  WalletCards,
 } from "lucide-react";
 import { logoutAction } from "@/lib/actions";
 import { Button } from "@/components/ui/button";
@@ -58,18 +53,13 @@ const mainNavItems = [
   { href: "/dashboard", label: "대시보드", icon: Home },
   { href: "/board", label: "게시판", icon: BookOpenText },
   { href: "/calendar", label: "캘린더", icon: CalendarDays },
+  { href: "/project-schedules", label: "프로젝트", icon: FolderKanban },
   { href: "/work-diaries", label: "업무일지", icon: FileText },
   { href: "/memos", label: "메모", icon: StickyNote },
   { href: "/contacts", label: "연락처", icon: UsersRound },
 ];
 
 const adminNavItems = [
-  { href: "/projects", label: "프로젝트 관리", icon: FolderKanban },
-  { href: "/tax-invoices", label: "전자세금계산서", icon: ReceiptText },
-  { href: "/bank", label: "법인통장", icon: WalletCards },
-  { href: "/payroll", label: "급여대장", icon: ClipboardList },
-  { href: "/my-payroll", label: "내 급여명세서", icon: FileSpreadsheet },
-  { href: "/imports", label: "업로드 이력", icon: FileClock },
   { href: "/users", label: "사용자 목록", icon: UsersRound },
   { href: "/permissions", label: "권한 관리", icon: Settings },
 ];
@@ -97,7 +87,7 @@ export function AdminShell({
 
     return Date.parse(localUser.updatedAt) >= Date.parse(user.updatedAt) ? localUser : user;
   }, [localUser, user]);
-  const sidebarWidth = isCollapsed ? "lg:pl-[84px]" : "lg:pl-[184px]";
+  const sidebarWidth = isCollapsed ? "lg:pl-[84px]" : "lg:pl-[204px]";
   const currentTitle =
     navItems.find((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))?.label ??
     "GUESAN ERP";
@@ -107,7 +97,7 @@ export function AdminShell({
       <aside
         className={cn(
           "fixed inset-y-0 left-0 hidden border-r border-[#e6ecf3] bg-white text-[#0d1b3d] shadow-[16px_0_44px_rgba(15,28,48,0.06)] transition-all duration-200 lg:block",
-          isCollapsed ? "w-[84px]" : "w-[184px]",
+          isCollapsed ? "w-[84px]" : "w-[204px]",
         )}
       >
         <Sidebar collapsed={isCollapsed} pathname={pathname} user={displayUser} />
@@ -124,7 +114,7 @@ export function AdminShell({
               <SheetContent
                 side="left"
                 showCloseButton={false}
-                className="w-[184px] border-0 bg-white p-0 text-[#0d1b3d]"
+                className="w-[204px] border-0 bg-white p-0 text-[#0d1b3d]"
               >
                 <Sidebar collapsed={false} pathname={pathname} user={displayUser} mobile />
               </SheetContent>
@@ -511,7 +501,7 @@ function Sidebar({
   user: AppUserRow;
   mobile?: boolean;
 }) {
-  const [adminOpen, setAdminOpen] = useState(true);
+  const [adminOpen, setAdminOpen] = useState(false);
   const adminActive = adminNavItems.some(
     (item) => pathname === item.href || pathname.startsWith(`${item.href}/`),
   );

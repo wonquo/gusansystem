@@ -553,7 +553,7 @@ export function ProjectDetail({
                   <tr
                     key={item.localId}
                     className={cn(
-                      "h-10 border-b border-[#edf1f6] bg-white last:border-b-0 hover:bg-[#f8fbff]",
+                      "border-b border-[#edf1f6] bg-white last:border-b-0 hover:bg-[#f8fbff]",
                       draggingItemId === item.localId && "bg-[#eef4ff] opacity-75",
                     )}
                     onDragOver={(event) => {
@@ -778,6 +778,7 @@ function EditableItemCell({
   const isPaymentOnlyField = field === "paymentStatus" || field === "paymentDate";
   const isPaymentItem = item.itemType === "payment";
   const isEditable = !isPaymentOnlyField || isPaymentItem;
+  const isMultilineField = field === "description" || field === "memo";
   const displayValue = getItemDisplayValue(item, field);
 
   if (isEditing) {
@@ -851,6 +852,25 @@ function EditableItemCell({
       );
     }
 
+    if (isMultilineField) {
+      return (
+        <Textarea
+          autoFocus
+          rows={1}
+          value={String(item[field] ?? "")}
+          onBlur={() => setEditingCell(null)}
+          onChange={(event) => updateItem(item.localId, { [field]: event.target.value })}
+          onKeyDown={(event) => {
+            if (event.key === "Escape" || ((event.metaKey || event.ctrlKey) && event.key === "Enter")) {
+              event.currentTarget.blur();
+            }
+          }}
+          placeholder={getFieldPlaceholder(field)}
+          className="max-h-48 min-h-7 resize-y rounded-md border-[#2f70dc] bg-white px-2 py-1 text-xs leading-5 ring-2 ring-[#2f70dc]/15 focus-visible:ring-[#2f70dc]/15"
+        />
+      );
+    }
+
     return (
       <Input
         autoFocus
@@ -876,7 +896,8 @@ function EditableItemCell({
     <button
       type="button"
       className={cn(
-        "block h-7 w-full min-w-0 rounded px-2 text-left leading-7 text-[#26344d] hover:bg-[#eef4ff] focus-visible:ring-2 focus-visible:ring-[#2f70dc]/20 focus-visible:outline-none",
+        "block w-full min-w-0 rounded px-2 text-left text-[#26344d] hover:bg-[#eef4ff] focus-visible:ring-2 focus-visible:ring-[#2f70dc]/20 focus-visible:outline-none",
+        isMultilineField ? "min-h-7 py-1 leading-5" : "h-7 leading-7",
         isAmount && "text-right font-mono font-semibold",
         field === "contractAmount" && "text-[#1f4f9f]",
         field === "receivedAmount" && "text-[#047857]",
@@ -915,7 +936,9 @@ function EditableItemCell({
           {PAYMENT_STATUS_LABELS[item.paymentStatus]}
         </span>
       ) : (
-        <span className="block truncate">{displayValue || "-"}</span>
+        <span className={cn("block", isMultilineField ? "whitespace-pre-wrap break-words" : "truncate")}>
+          {displayValue || "-"}
+        </span>
       )}
     </button>
   );

@@ -947,8 +947,14 @@ export function CompanyCalendar({
                   >
                     <button
                       aria-label={`일정 등록 ${cell.dateValue}`}
+                      className="absolute inset-0 z-0 cursor-pointer focus-visible:ring-2 focus-visible:ring-[#2f70dc] focus-visible:ring-inset focus-visible:outline-none"
+                      onClick={() => openEventForm(cell.dateValue)}
+                      type="button"
+                    />
+                    <button
+                      aria-label={`일정 등록 ${cell.dateValue}`}
                       className={cn(
-                        "inline-grid h-5 min-w-5 place-items-center rounded-sm px-1 text-[11px] font-semibold leading-none",
+                        "relative z-10 inline-grid h-5 min-w-5 place-items-center rounded-sm px-1 text-[11px] font-semibold leading-none",
                         cell.isCurrentMonth ? "text-[#2d3340]" : "text-[#aeb7c6]",
                         cell.isToday && "bg-[#2f70dc] text-white shadow-sm",
                       )}
@@ -957,7 +963,7 @@ export function CompanyCalendar({
                     >
                       {cell.date.getDate()}
                     </button>
-                    <span className="mt-1 grid gap-1">
+                    <span className="pointer-events-none relative z-10 mt-1 grid gap-1">
                       {visibleLanes.map((event, laneIndex) => {
                         if (!event) {
                           return (
@@ -980,7 +986,7 @@ export function CompanyCalendar({
                           <button
                             aria-label={getEventCalendarLabel(event)}
                             className={cn(
-                              "relative z-10 block min-w-0 px-2 py-1 text-left text-xs font-bold leading-tight",
+                              "pointer-events-auto relative z-10 block min-w-0 px-2 py-1 text-left text-xs font-bold leading-tight",
                               spanPosition === "single" && "rounded-md",
                               spanPosition === "start" &&
                                 "-mr-1.5 rounded-l-md rounded-r-none border-r-0 pr-1",

@@ -9,12 +9,15 @@ import {
   menuPermissions,
   payrollItems,
   payrollSlips,
+  projectScheduleItems,
+  projectSchedules,
   projectItems,
   projects,
   taxInvoices,
   type AppUserRole,
 } from "@/db/schema";
 import { ERP_MENUS, type ErpMenuKey, type PermissionAction } from "./menus";
+import type { ProjectScheduleImportError, ProjectScheduleImportRow } from "./project-schedule-import";
 import type { ProjectImportError, ProjectImportProject } from "./project-import";
 
 export type GenericListParams = {
@@ -37,6 +40,19 @@ export type ProjectItemInput = {
   memo?: unknown;
   sourceSheetName?: unknown;
   sourceRowNumber?: unknown;
+  sortOrder?: unknown;
+};
+
+export type ProjectScheduleType = "main" | "sub";
+
+export type ProjectScheduleItemInput = {
+  scheduleDate?: unknown;
+  scheduleText?: unknown;
+  taskDescription?: unknown;
+  managerName?: unknown;
+  status?: unknown;
+  memo?: unknown;
+  sourceLineNumber?: unknown;
   sortOrder?: unknown;
 };
 
@@ -75,6 +91,46 @@ export async function listProjects(params: GenericListParams = {}) {
       updatedAt: item.updatedAt.toISOString(),
     })),
   }));
+}
+
+export async function listProjectSchedules(
+  params: GenericListParams & { projectType?: ProjectScheduleType | null } = {},
+) {
+  if (!hasDatabaseUrl()) {
+    return [];
+  }
+  const query = params.query?.trim();
+  const filters: SQL[] = [];
+  if (params.projectType === "main" || params.projectType === "sub") {
+    filters.push(eq(projectSchedules.projectType, params.projectType));
+  }
+  if (query) {
+    const keywordFilter = or(
+      ilike(projectSchedules.projectCode, `%${query}%`),
+      ilike(projectSchedules.projectName, `%${query}%`),
+      ilike(projectSchedules.taskDescription, `%${query}%`),
+      ilike(projectSchedules.destinationName, `%${query}%`),
+      ilike(projectSchedules.managerName, `%${query}%`),
+      ilike(projectSchedules.controlManagerName, `%${query}%`),
+      ilike(projectSchedules.facilityManagerName, `%${query}%`),
+      ilike(projectSchedules.status, `%${query}%`),
+      ilike(projectSchedules.memo, `%${query}%`),
+    );
+    if (keywordFilter) {
+      filters.push(keywordFilter);
+    }
+  }
+  const rows = await getDb().query.projectSchedules.findMany({
+    where: filters.length ? and(...filters) : undefined,
+    with: {
+      items: {
+        orderBy: [asc(projectScheduleItems.sortOrder), asc(projectScheduleItems.sourceLineNumber)],
+      },
+    },
+    orderBy: [desc(projectSchedules.updatedAt)],
+    limit: params.limit ?? 800,
+  });
+  return rows.map(serializeProjectSchedule);
 }
 
 export async function listTaxInvoices(params: GenericListParams = {}) {
@@ -371,6 +427,63 @@ export async function updatePermissionsForRole(
       },
     })
     .returning();
+}
+
+export async function createProjectScheduleWithItems(data: Record<string, unknown>) {
+  const db = getDb();
+  const normalizedItems = normalizeProjectScheduleItemsInput(data.items);
+  const scheduleValues = normalizeProjectSchedule(data);
+  const [created] = await db.insert(projectSchedules).values(scheduleValues).returning();
+  if (normalizedItems.length) {
+    await db.insert(projectScheduleItems).values(toProjectScheduleItemRows(created.id, normalizedItems));
+  }
+  return getProjectScheduleById(created.id);
+}
+
+export async function updateProjectScheduleWithItems(id: string, data: Record<string, unknown>) {
+  const db = getDb();
+  const existing = await db.query.projectSchedules.findFirst({ where: eq(projectSchedules.id, id) });
+  if (!existing) {
+    throw new Error("프로젝트를 찾지 못했습니다.");
+  }
+  const hasItemsPatch = Array.isArray(data.items);
+  const normalizedItems = hasItemsPatch ? normalizeProjectScheduleItemsInput(data.items) : [];
+  const [updated] = await db
+    .update(projectSchedules)
+    .set({ ...normalizeProjectSchedule(data), updatedAt: new Date() })
+    .where(eq(projectSchedules.id, id))
+    .returning();
+
+  if (hasItemsPatch) {
+    await db.delete(projectScheduleItems).where(eq(projectScheduleItems.projectScheduleId, id));
+    if (normalizedItems.length) {
+      await db.insert(projectScheduleItems).values(toProjectScheduleItemRows(updated.id, normalizedItems));
+    }
+  }
+  return getProjectScheduleById(id);
+}
+
+export async function deleteProjectSchedule(id: string) {
+  const [deleted] = await getDb().delete(projectSchedules).where(eq(projectSchedules.id, id)).returning();
+  if (!deleted) {
+    throw new Error("프로젝트를 찾지 못했습니다.");
+  }
+  return deleted;
+}
+
+export async function getProjectScheduleById(id: string) {
+  const row = await getDb().query.projectSchedules.findFirst({
+    where: eq(projectSchedules.id, id),
+    with: {
+      items: {
+        orderBy: [asc(projectScheduleItems.sortOrder), asc(projectScheduleItems.sourceLineNumber)],
+      },
+    },
+  });
+  if (!row) {
+    throw new Error("프로젝트를 찾지 못했습니다.");
+  }
+  return serializeProjectSchedule(row);
 }
 
 export async function createProjectWithItems(data: Record<string, unknown>) {
@@ -694,6 +807,96 @@ export async function saveProjectImport(input: {
   return batch;
 }
 
+export async function saveProjectScheduleImport(input: {
+  fileName: string;
+  importType: string;
+  sheetName: string;
+  importedBy: string;
+  rows: ProjectScheduleImportRow[];
+  errors: ProjectScheduleImportError[];
+}) {
+  const db = getDb();
+  const [batch] = await db
+    .insert(importBatches)
+    .values({
+      fileName: input.fileName,
+      sheetName: input.sheetName,
+      importType: input.importType,
+      detectedType: "project-schedules",
+      status: input.errors.length ? "failed" : "completed",
+      rowCount: input.rows.length + input.errors.length,
+      successCount: input.rows.length,
+      errorCount: input.errors.length,
+      resultSummary: {
+        rows: input.rows.length,
+        schedules: input.rows.reduce((total, row) => total + row.items.length, 0),
+        errors: input.errors.length,
+      },
+      errorMessage: input.errors[0]?.message ?? null,
+      importedBy: input.importedBy,
+    })
+    .returning();
+
+  for (const row of input.rows) {
+    const existing = await db.query.projectSchedules.findFirst({
+      where: and(
+        eq(projectSchedules.sourceSheetName, row.sheetName),
+        eq(projectSchedules.sourceRowNumber, row.sourceRowNumber),
+      ),
+    });
+    const values = projectScheduleImportValues(row, batch.id);
+    const [saved] = existing
+      ? await db
+          .update(projectSchedules)
+          .set({ ...values, updatedAt: new Date() })
+          .where(eq(projectSchedules.id, existing.id))
+          .returning()
+      : await db.insert(projectSchedules).values(values).returning();
+
+    await db.delete(projectScheduleItems).where(eq(projectScheduleItems.projectScheduleId, saved.id));
+    if (row.items.length) {
+      await db.insert(projectScheduleItems).values(
+        row.items.map((item) => ({
+          projectScheduleId: saved.id,
+          scheduleDate: item.scheduleDate,
+          scheduleText: item.scheduleText,
+          taskDescription: item.taskDescription,
+          managerName: item.managerName,
+          status: item.status,
+          memo: item.memo,
+          sourceLineNumber: item.sourceLineNumber,
+          sortOrder: item.sortOrder,
+          rawData: item.rawData,
+        })),
+      );
+    }
+
+    await db.insert(importRows).values({
+      batchId: batch.id,
+      targetTable: "project_schedules",
+      targetId: saved.id,
+      sheetName: row.sheetName,
+      sourceRowNumber: row.sourceRowNumber,
+      sourceCellRange: `${row.sourceRowNumber}:${row.sourceRowNumber}`,
+      status: existing ? "updated" : "imported",
+      rawData: row.rawData,
+    });
+  }
+
+  for (const error of input.errors) {
+    await db.insert(importRows).values({
+      batchId: batch.id,
+      sheetName: error.sheetName,
+      sourceRowNumber: error.sourceRowNumber,
+      status: "error",
+      errorMessage: error.message,
+      rawData: error.rawData,
+    });
+  }
+
+  return batch;
+}
+
 export async function saveUnsupportedImport(input: {
   fileName: string;
   importType: string;
@@ -806,6 +1009,7 @@ export function buildDefaultPermissions() {
         menu.key === "dashboard" ||
         menu.key === "board" ||
         menu.key === "calendar" ||
+        menu.key === "project-schedules" ||
         menu.key === "work-diaries" ||
         menu.key === "memos",
       canCreate:
@@ -842,6 +1046,130 @@ export async function createGenericRow(kind: string, data: Record<string, unknow
     return row;
   }
   throw new Error("지원하지 않는 저장 유형입니다.");
+}
+
+function serializeProjectSchedule(
+  row: typeof projectSchedules.$inferSelect & { items: (typeof projectScheduleItems.$inferSelect)[] },
+) {
+  return {
+    ...row,
+    itemCount: row.items.length,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+    items: row.items
+      .sort((left, right) => left.sortOrder - right.sortOrder || left.sourceLineNumber - right.sourceLineNumber)
+      .map((item) => ({
+        ...item,
+        scheduleDate: item.scheduleDate ?? null,
+        createdAt: item.createdAt.toISOString(),
+        updatedAt: item.updatedAt.toISOString(),
+      })),
+  };
+}
+
+function normalizeProjectSchedule(data: Record<string, unknown>) {
+  const projectType = normalizeProjectScheduleType(data.projectType);
+  return {
+    projectType,
+    projectCode: textValue(data.projectCode),
+    projectName: textValue(data.projectName) || "미지정 프로젝트",
+    taskDescription: textValue(data.taskDescription),
+    destinationName: textValue(data.destinationName),
+    controlManagerName: textValue(data.controlManagerName),
+    facilityManagerName: textValue(data.facilityManagerName),
+    managerName: textValue(data.managerName),
+    projectMonth: textValue(data.projectMonth),
+    status: textValue(data.status),
+    expenseMemo: textValue(data.expenseMemo),
+    expenseAmount: numberValue(data.expenseAmount),
+    memo: textValue(data.memo),
+    sourceSheetName: textValue(data.sourceSheetName),
+    sourceRowNumber: numberValue(data.sourceRowNumber) || null,
+    sourceSection: textValue(data.sourceSection),
+    rawData: data.rawData && isRecord(data.rawData) ? data.rawData : data,
+  };
+}
+
+function normalizeProjectScheduleType(value: unknown): ProjectScheduleType {
+  return textValue(value) === "sub" ? "sub" : "main";
+}
+
+type NormalizedProjectScheduleItemInput = {
+  scheduleDate: string | null;
+  scheduleText: string;
+  taskDescription: string | null;
+  managerName: string | null;
+  status: string | null;
+  memo: string | null;
+  sourceLineNumber: number;
+  sortOrder: number;
+  rawData: Record<string, unknown>;
+};
+
+function normalizeProjectScheduleItemsInput(value: unknown): NormalizedProjectScheduleItemInput[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .map((item, index) => normalizeProjectScheduleItemInput(item, index))
+    .filter((item) => item.scheduleText || item.taskDescription || item.managerName || item.status || item.memo);
+}
+
+function normalizeProjectScheduleItemInput(value: unknown, index: number): NormalizedProjectScheduleItemInput {
+  const input = isRecord(value) ? (value as ProjectScheduleItemInput) : {};
+  const scheduleText = textValue(input.scheduleText) || textValue(input.taskDescription) || "일정";
+  return {
+    scheduleDate: dateTextValue(input.scheduleDate),
+    scheduleText,
+    taskDescription: textValue(input.taskDescription),
+    managerName: textValue(input.managerName),
+    status: textValue(input.status),
+    memo: textValue(input.memo),
+    sourceLineNumber: numberValue(input.sourceLineNumber) || index + 1,
+    sortOrder: numberValue(input.sortOrder) || index,
+    rawData: isRecord(value) ? value : { scheduleText },
+  };
+}
+
+function toProjectScheduleItemRows(
+  projectScheduleId: string,
+  items: NormalizedProjectScheduleItemInput[],
+) {
+  return items.map((item, index) => ({
+    projectScheduleId,
+    scheduleDate: item.scheduleDate,
+    scheduleText: item.scheduleText,
+    taskDescription: item.taskDescription,
+    managerName: item.managerName,
+    status: item.status,
+    memo: item.memo,
+    sourceLineNumber: item.sourceLineNumber,
+    sortOrder: item.sortOrder || index,
+    rawData: item.rawData,
+  }));
+}
+
+function projectScheduleImportValues(row: ProjectScheduleImportRow, importBatchId: string) {
+  return {
+    projectType: row.projectType,
+    projectCode: row.projectCode,
+    projectName: row.projectName,
+    taskDescription: row.taskDescription,
+    destinationName: row.destinationName,
+    controlManagerName: row.controlManagerName,
+    facilityManagerName: row.facilityManagerName,
+    managerName: row.managerName,
+    projectMonth: row.projectMonth,
+    status: row.status,
+    expenseMemo: row.expenseMemo,
+    expenseAmount: row.expenseAmount,
+    memo: row.memo,
+    sourceSheetName: row.sheetName,
+    sourceRowNumber: row.sourceRowNumber,
+    sourceSection: row.sourceSection,
+    rawData: row.rawData,
+    importBatchId,
+  };
 }
 
 function normalizeProject(data: Record<string, unknown>) {
