@@ -53,9 +53,9 @@ export default async function DashboardPage() {
   const workDiaryStats = getWorkDiaryStats(workDiaryRows, workDiaryMonth, today);
 
   return (
-    <main className="min-h-[calc(100vh-6rem)] bg-[#f6f7f9] py-2">
-      <section className="grid w-full gap-3 xl:grid-cols-3">
-        <DashboardCard className="min-h-[420px]">
+    <main className="bg-[#f6f7f9] py-1">
+      <section className="grid w-full gap-3 xl:grid-cols-4">
+        <DashboardCard className="min-h-[340px]">
           <div className="flex items-center justify-between border-b border-[#eceff3] pb-3">
             <h1 className="text-lg font-bold tracking-normal text-[#171b26]">공지사항</h1>
             <Link
@@ -79,7 +79,7 @@ export default async function DashboardPage() {
           </div>
         </DashboardCard>
 
-        <DashboardCard className="min-h-[420px]">
+        <DashboardCard className="min-h-[340px]">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-lg font-bold tracking-normal text-[#171b26]">캘린더</h2>
             <div className="flex items-center gap-3">
@@ -152,7 +152,7 @@ export default async function DashboardPage() {
           </div>
         </DashboardCard>
 
-        <DashboardCard className="min-h-[420px]">
+        <DashboardCard className="min-h-[340px]">
           <div className="flex items-center justify-between border-b border-[#eceff3] pb-3">
             <h2 className="text-lg font-bold tracking-normal text-[#171b26]">업무일지</h2>
             <Link
@@ -164,7 +164,7 @@ export default async function DashboardPage() {
             </Link>
           </div>
 
-          <div className="flex min-h-[316px] flex-col items-center justify-center">
+          <div className="flex min-h-[236px] flex-col items-center justify-center">
             <DonutChart value={workDiaryStats.percent} />
             <p className="mt-5 text-sm font-bold text-[#202838]">
               {formatMonthTitle(workDiaryMonth)} 작성률
@@ -185,7 +185,7 @@ export default async function DashboardPage() {
           </div>
         </DashboardCard>
 
-        <DashboardCard className="min-h-[420px]">
+        <DashboardCard className="min-h-[340px]">
           <WhiteBoardCard initialState={whiteboardState} />
         </DashboardCard>
       </section>

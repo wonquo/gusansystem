@@ -727,7 +727,7 @@ export function WhiteBoardCard({ initialState }: { initialState: WhiteboardState
 
   return (
     <>
-      <div className="flex h-full min-h-[420px] flex-col">
+      <div className="flex h-full min-h-[300px] flex-col">
         <div className="flex items-center justify-between border-b border-[#eceff3] pb-3">
           <div className="flex items-center gap-2">
             <span className="grid size-8 place-items-center rounded-md bg-[#fff3d8] text-[#a15c08]">
