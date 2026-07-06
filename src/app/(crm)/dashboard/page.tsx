@@ -185,7 +185,7 @@ export default async function DashboardPage() {
           </div>
         </DashboardCard>
 
-        <DashboardCard className="min-h-[240px]">
+        <DashboardCard className="min-h-[387px]">
           <WhiteBoardCard initialState={whiteboardState} />
         </DashboardCard>
       </section>

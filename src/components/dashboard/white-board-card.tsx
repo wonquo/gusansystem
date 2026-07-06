@@ -727,7 +727,7 @@ export function WhiteBoardCard({ initialState }: { initialState: WhiteboardState
 
   return (
     <>
-      <div className="flex h-full min-h-[200px] flex-col">
+      <div className="flex h-full min-h-[347px] flex-col">
         <div className="flex items-center justify-between border-b border-[#eceff3] pb-3">
           <div className="flex items-center gap-2">
             <span className="grid size-8 place-items-center rounded-md bg-[#fff3d8] text-[#a15c08]">
@@ -746,8 +746,8 @@ export function WhiteBoardCard({ initialState }: { initialState: WhiteboardState
           </Button>
         </div>
 
-        <div className="mt-4 flex flex-1 flex-col gap-3">
-          <div className="relative h-32 overflow-hidden rounded-lg border border-[#e3e8ef] bg-white">
+        <div className="mt-4 flex min-h-0 flex-1 flex-col gap-3">
+          <div className="relative min-h-0 flex-1 overflow-hidden rounded-lg border border-[#e3e8ef] bg-white">
             {state.canvasDataUrl ? (
               <Image
                 src={state.canvasDataUrl}
