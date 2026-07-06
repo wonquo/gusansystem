@@ -727,13 +727,13 @@ export function WhiteBoardCard({ initialState }: { initialState: WhiteboardState
 
   return (
     <>
-      <div className="flex h-full min-h-[300px] flex-col">
+      <div className="flex h-full min-h-[200px] flex-col">
         <div className="flex items-center justify-between border-b border-[#eceff3] pb-3">
           <div className="flex items-center gap-2">
             <span className="grid size-8 place-items-center rounded-md bg-[#fff3d8] text-[#a15c08]">
               <Paintbrush className="size-4" />
             </span>
-            <h2 className="text-lg font-bold tracking-normal text-[#171b26]">White Board</h2>
+            <h2 className="text-lg font-bold tracking-normal text-[#171b26]">보드</h2>
           </div>
           <Button
             type="button"
@@ -742,16 +742,16 @@ export function WhiteBoardCard({ initialState }: { initialState: WhiteboardState
             className="border-[#d9e2ee] text-xs font-bold text-[#373f4f] hover:bg-[#f8fafc]"
             onClick={openEditor}
           >
-            Edit
+            수정
           </Button>
         </div>
 
         <div className="mt-4 flex flex-1 flex-col gap-3">
-          <div className="relative aspect-video overflow-hidden rounded-lg border border-[#e3e8ef] bg-white">
+          <div className="relative h-32 overflow-hidden rounded-lg border border-[#e3e8ef] bg-white">
             {state.canvasDataUrl ? (
               <Image
                 src={state.canvasDataUrl}
-                alt="White Board canvas"
+                alt="보드 캔버스"
                 fill
                 unoptimized
                 className="bg-white object-contain"
@@ -764,26 +764,26 @@ export function WhiteBoardCard({ initialState }: { initialState: WhiteboardState
           </div>
 
           <div className="mt-auto flex items-center justify-between gap-3 text-xs font-medium text-[#8a94a6]">
-            <span>{hasContent ? "Shared board" : "Empty"}</span>
+            <span>{hasContent ? "공유 보드" : "비어 있음"}</span>
             <span>{formatUpdatedAt(state.updatedAt)}</span>
           </div>
         </div>
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-h-[calc(100vh-2rem)] overflow-hidden bg-white p-0 sm:max-w-[1180px]">
-          <DialogHeader className="border-b border-[#e6ecf3] px-5 py-4">
+        <DialogContent className="flex h-[calc(100vh-24px)] max-h-[calc(100vh-24px)] w-[calc(100vw-24px)] !max-w-[1080px] flex-col gap-0 overflow-hidden bg-white p-0">
+          <DialogHeader className="shrink-0 border-b border-[#e6ecf3] px-4 py-3">
             <DialogTitle className="flex items-center gap-2 text-lg font-bold text-[#171b26]">
               <Paintbrush className="size-5 text-[#a15c08]" />
-              White Board
+              보드
             </DialogTitle>
             <DialogDescription>
-              {state.updatedByName ? `Last edited by ${state.updatedByName}` : "Shared dashboard board"}
+              {state.updatedByName ? `마지막 수정: ${state.updatedByName}` : "대시보드 공유 보드"}
             </DialogDescription>
           </DialogHeader>
 
-          <div className="max-h-[calc(100vh-13rem)] overflow-auto px-5 py-4">
-            <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-[#e6ecf3] bg-[#f8fafc] p-2">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 py-3">
+            <div className="mb-2 flex shrink-0 flex-wrap items-center gap-1.5 rounded-lg border border-[#e6ecf3] bg-[#f8fafc] p-1.5">
               <div className="flex flex-wrap items-center gap-1 rounded-lg border border-[#d9e2ee] bg-white p-1">
                 <Button
                   type="button"
@@ -793,7 +793,7 @@ export function WhiteBoardCard({ initialState }: { initialState: WhiteboardState
                   aria-pressed={tool === "select"}
                 >
                   <Type className="size-4" />
-                  Select
+                  선택
                 </Button>
                 <Button
                   type="button"
@@ -803,7 +803,7 @@ export function WhiteBoardCard({ initialState }: { initialState: WhiteboardState
                   aria-pressed={tool === "pen"}
                 >
                   <Brush className="size-4" />
-                  Pen
+                  펜
                 </Button>
                 <Button
                   type="button"
@@ -813,11 +813,11 @@ export function WhiteBoardCard({ initialState }: { initialState: WhiteboardState
                   aria-pressed={tool === "eraser"}
                 >
                   <Eraser className="size-4" />
-                  Eraser
+                  지우개
                 </Button>
               </div>
 
-              <div className="flex min-h-10 flex-wrap items-center gap-2 rounded-lg border border-[#d9e2ee] bg-white px-2 py-1">
+              <div className="flex min-h-9 flex-wrap items-center gap-2 rounded-lg border border-[#d9e2ee] bg-white px-2 py-1">
                 <div className="flex items-center gap-1">
                   {COLOR_SWATCHES.map((swatch) => (
                     <button
@@ -858,7 +858,7 @@ export function WhiteBoardCard({ initialState }: { initialState: WhiteboardState
               <div className="flex flex-wrap items-center gap-1 rounded-lg border border-[#d9e2ee] bg-white p-1">
                 <Button type="button" variant="ghost" size="sm" onClick={addTextBox}>
                   <Type className="size-4" />
-                  Text
+                  글자
                 </Button>
                 <Button
                   type="button"
@@ -868,7 +868,7 @@ export function WhiteBoardCard({ initialState }: { initialState: WhiteboardState
                   onClick={editSelectedTextObject}
                 >
                   <PencilLine className="size-4" />
-                  Edit
+                  편집
                 </Button>
                 <div className="flex h-8 items-center overflow-hidden rounded-md border border-[#d9e2ee] bg-white text-xs font-bold text-[#373f4f]">
                   <button
@@ -903,15 +903,15 @@ export function WhiteBoardCard({ initialState }: { initialState: WhiteboardState
                   onClick={() => fileInputRef.current?.click()}
                 >
                   <ImagePlus className="size-4" />
-                  Image
+                  이미지
                 </Button>
                 <Button type="button" variant="ghost" size="sm" disabled={!hasSelectedObjects} onClick={deleteSelectedObject}>
                   <Trash2 className="size-4" />
-                  Delete
+                  삭제
                 </Button>
                 <Button type="button" variant="ghost" size="sm" onClick={clearBoard}>
                   <RotateCcw className="size-4" />
-                  Clear
+                  초기화
                 </Button>
               </div>
               <input
@@ -927,12 +927,12 @@ export function WhiteBoardCard({ initialState }: { initialState: WhiteboardState
             </div>
 
             <div
-              className="rounded-lg border border-[#d8e0ea] bg-white p-2 shadow-inner"
+              className="min-h-0 flex-1 rounded-lg border border-[#d8e0ea] bg-white p-2 shadow-inner"
               onPaste={handlePaste}
             >
               <div
                 ref={boardRef}
-                className="relative aspect-video w-full overflow-hidden rounded-md bg-white [container-type:inline-size]"
+                className="relative mx-auto aspect-video h-full max-h-full max-w-full overflow-hidden rounded-md bg-white [container-type:inline-size]"
                 tabIndex={0}
                 onPointerDown={handleBoardPointerDown}
                 onContextMenu={handleBoardContextMenu}
@@ -1002,7 +1002,7 @@ export function WhiteBoardCard({ initialState }: { initialState: WhiteboardState
             ) : null}
           </div>
 
-          <DialogFooter className="mx-0 mb-0 border-t border-[#e6ecf3] bg-[#f8fafc] px-5 py-4">
+          <DialogFooter className="mx-0 mb-0 shrink-0 border-t border-[#e6ecf3] bg-[#f8fafc] px-4 py-3">
             <Button
               type="button"
               variant="outline"
@@ -1010,11 +1010,11 @@ export function WhiteBoardCard({ initialState }: { initialState: WhiteboardState
               disabled={saving}
               onClick={() => setOpen(false)}
             >
-              Cancel
+              취소
             </Button>
             <Button type="button" disabled={saving || loading} onClick={saveWhiteboard}>
               {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
-              Save
+              저장
             </Button>
           </DialogFooter>
         </DialogContent>

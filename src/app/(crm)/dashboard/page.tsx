@@ -54,7 +54,7 @@ export default async function DashboardPage() {
 
   return (
     <main className="bg-[#f6f7f9] py-1">
-      <section className="grid w-full gap-3 xl:grid-cols-4">
+      <section className="grid w-full gap-3 xl:grid-cols-3">
         <DashboardCard className="min-h-[340px]">
           <div className="flex items-center justify-between border-b border-[#eceff3] pb-3">
             <h1 className="text-lg font-bold tracking-normal text-[#171b26]">공지사항</h1>
@@ -185,7 +185,7 @@ export default async function DashboardPage() {
           </div>
         </DashboardCard>
 
-        <DashboardCard className="min-h-[340px]">
+        <DashboardCard className="min-h-[240px]">
           <WhiteBoardCard initialState={whiteboardState} />
         </DashboardCard>
       </section>
