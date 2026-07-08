@@ -15,6 +15,7 @@ import {
   memos,
   noticeComments,
   notices,
+  whiteboardStates,
   workDiaryEntries,
 } from "@/db/schema";
 import { canManageUsers, getCurrentAppUser, hashPassword, serializeUser } from "@/lib/auth";
@@ -297,6 +298,7 @@ export async function DELETE(
       db.update(boardPosts).set({ createdBy: null }).where(eq(boardPosts.createdBy, targetUserId)),
       db.update(boardComments).set({ createdBy: null }).where(eq(boardComments.createdBy, targetUserId)),
       db.update(memos).set({ createdBy: null, updatedAt: now }).where(eq(memos.createdBy, targetUserId)),
+      db.update(whiteboardStates).set({ updatedBy: null, updatedAt: now }).where(eq(whiteboardStates.updatedBy, targetUserId)),
       db.update(contacts).set({ createdBy: null, updatedAt: now }).where(eq(contacts.createdBy, targetUserId)),
       db.update(calendarEvents).set({ createdBy: null }).where(eq(calendarEvents.createdBy, targetUserId)),
       db.update(importBatches).set({ importedBy: null }).where(eq(importBatches.importedBy, targetUserId)),

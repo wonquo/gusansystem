@@ -454,7 +454,7 @@ export function ProjectScheduleGrid({
         </Alert>
       ) : null}
 
-      <section className="relative min-h-0 overflow-hidden rounded-lg border border-[#d8e0ea] bg-white shadow-[0_10px_34px_rgba(15,28,48,0.06)]">
+      <section className="relative min-h-0 flex-1 overflow-hidden rounded-lg border border-[#d8e0ea] bg-white shadow-[0_10px_34px_rgba(15,28,48,0.06)]">
         {isPending ? (
           <div className="absolute inset-x-0 top-0 z-10 h-0.5 overflow-hidden bg-[#dbe7fb]">
             <span className="block h-full w-1/3 animate-pulse bg-[#2f70dc]" />

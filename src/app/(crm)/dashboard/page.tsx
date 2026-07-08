@@ -55,7 +55,11 @@ export default async function DashboardPage() {
   return (
     <main className="bg-[#f6f7f9] py-1">
       <section className="grid w-full gap-3 xl:grid-cols-3">
-        <DashboardCard className="min-h-[340px]">
+        <DashboardCard className="min-h-[377px]">
+          <WhiteBoardCard initialState={whiteboardState} />
+        </DashboardCard>
+
+        <DashboardCard className="min-h-[330px]">
           <div className="flex items-center justify-between border-b border-[#eceff3] pb-3">
             <h1 className="text-lg font-bold tracking-normal text-[#171b26]">공지사항</h1>
             <Link
@@ -79,7 +83,7 @@ export default async function DashboardPage() {
           </div>
         </DashboardCard>
 
-        <DashboardCard className="min-h-[340px]">
+        <DashboardCard className="min-h-[330px]">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-lg font-bold tracking-normal text-[#171b26]">캘린더</h2>
             <div className="flex items-center gap-3">
@@ -152,7 +156,7 @@ export default async function DashboardPage() {
           </div>
         </DashboardCard>
 
-        <DashboardCard className="min-h-[340px]">
+        <DashboardCard className="min-h-[330px]">
           <div className="flex items-center justify-between border-b border-[#eceff3] pb-3">
             <h2 className="text-lg font-bold tracking-normal text-[#171b26]">업무일지</h2>
             <Link
@@ -164,7 +168,7 @@ export default async function DashboardPage() {
             </Link>
           </div>
 
-          <div className="flex min-h-[236px] flex-col items-center justify-center">
+          <div className="flex min-h-[226px] flex-col items-center justify-center">
             <DonutChart value={workDiaryStats.percent} />
             <p className="mt-5 text-sm font-bold text-[#202838]">
               {formatMonthTitle(workDiaryMonth)} 작성률
@@ -183,10 +187,6 @@ export default async function DashboardPage() {
               <WorkDiaryStat label="오늘" value={workDiaryStats.isTodayWritten ? "작성" : "미작성"} />
             </div>
           </div>
-        </DashboardCard>
-
-        <DashboardCard className="min-h-[387px]">
-          <WhiteBoardCard initialState={whiteboardState} />
         </DashboardCard>
       </section>
     </main>

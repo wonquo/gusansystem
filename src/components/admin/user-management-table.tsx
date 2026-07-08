@@ -9,6 +9,7 @@ import {
   type ColDef,
   type ICellRendererParams,
   type RowDoubleClickedEvent,
+  type SelectionChangedEvent,
 } from "ag-grid-community";
 import { KeyRound, Loader2, Plus, RefreshCw, Search, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -124,9 +125,11 @@ export function UserManagementTable({
   const [appliedFilters, setAppliedFilters] = useState<UserFilters>(initialFilters);
   const [createForm, setCreateForm] = useState<CreateUserForm>(initialCreateForm);
   const [editForm, setEditForm] = useState<EditUserForm | null>(null);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [editError, setEditError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [isDeletingId, setIsDeletingId] = useState<string | null>(null);
@@ -151,6 +154,11 @@ export function UserManagementTable({
       return matchesQuery && matchesRole && matchesStatus;
     });
   }, [appliedFilters, users]);
+
+  const selectedUser = useMemo(
+    () => filteredUsers.find((user) => user.id === selectedUserId) ?? null,
+    [filteredUsers, selectedUserId],
+  );
 
   const columnDefs = useMemo<ColDef<AppUserRow>[]>(
     () => [
@@ -238,6 +246,7 @@ export function UserManagementTable({
   }
 
   function openEditDialog(user: AppUserRow) {
+    setActionError(null);
     setEditForm({
       id: user.id,
       loginId: user.loginId,
@@ -255,6 +264,7 @@ export function UserManagementTable({
   async function createUser(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setCreateError(null);
+    setActionError(null);
     setIsCreating(true);
 
     const response = await fetch("/api/users", {
@@ -272,6 +282,7 @@ export function UserManagementTable({
     }
 
     setUsers((current) => [data.user, ...current]);
+    setSelectedUserId(data.user.id);
     setCreateForm(initialCreateForm);
     setIsCreateOpen(false);
     router.refresh();
@@ -284,6 +295,7 @@ export function UserManagementTable({
     }
 
     setEditError(null);
+    setActionError(null);
     setIsSavingEdit(true);
 
     const response = await fetch(`/api/users/${editForm.id}`, {
@@ -316,7 +328,9 @@ export function UserManagementTable({
 
   async function deleteUser(user: Pick<AppUserRow, "id" | "name">) {
     if (user.id === currentUserId) {
-      setEditError("현재 로그인한 사용자는 삭제할 수 없습니다.");
+      const message = "현재 로그인한 사용자는 삭제할 수 없습니다.";
+      setEditError(message);
+      setActionError(message);
       return;
     }
     if (!window.confirm(`${user.name} 사용자를 삭제할까요? 연결된 사원 정보는 유지되고 계정 연결만 해제됩니다.`)) {
@@ -324,6 +338,7 @@ export function UserManagementTable({
     }
 
     setEditError(null);
+    setActionError(null);
     setIsDeletingId(user.id);
 
     const response = await fetch(`/api/users/${user.id}`, {
@@ -334,11 +349,14 @@ export function UserManagementTable({
     setIsDeletingId(null);
 
     if (!response.ok) {
-      setEditError(data.error ?? "사용자를 삭제하지 못했습니다.");
+      const message = data.error ?? "사용자를 삭제하지 못했습니다.";
+      setEditError(message);
+      setActionError(message);
       return;
     }
 
     setUsers((current) => current.filter((currentUser) => currentUser.id !== user.id));
+    setSelectedUserId((current) => (current === user.id ? null : current));
     if (editForm?.id === user.id) {
       setEditForm(null);
     }
@@ -432,28 +450,43 @@ export function UserManagementTable({
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <Badge variant="outline" className="h-7 border-[#cfd9e7] bg-white px-2.5 text-xs">
-            {filteredUsers.length.toLocaleString()}건
-          </Badge>
-          <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-            <DialogTrigger asChild>
-              <Button type="button" size="sm">
-                <Plus className="size-3.5" />
-                사용자 추가
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-h-[86vh] overflow-y-auto sm:max-w-md">
-              <UserForm
-                mode="create"
-                form={createForm}
-                error={createError}
-                isSaving={isCreating}
-                onSubmit={createUser}
-                onCancel={() => setIsCreateOpen(false)}
-                onChange={setCreateForm}
-              />
-            </DialogContent>
-          </Dialog>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="outline" className="h-7 border-[#cfd9e7] bg-white px-2.5 text-xs">
+              {filteredUsers.length.toLocaleString()}건
+            </Badge>
+            {actionError ? <p className="text-xs font-medium text-destructive">{actionError}</p> : null}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+              <DialogTrigger asChild>
+                <Button type="button" size="sm">
+                  <Plus className="size-3.5" />
+                  사용자 추가
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-h-[86vh] overflow-y-auto sm:max-w-md">
+                <UserForm
+                  mode="create"
+                  form={createForm}
+                  error={createError}
+                  isSaving={isCreating}
+                  onSubmit={createUser}
+                  onCancel={() => setIsCreateOpen(false)}
+                  onChange={setCreateForm}
+                />
+              </DialogContent>
+            </Dialog>
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              onClick={() => selectedUser && deleteUser(selectedUser)}
+              disabled={!selectedUser || selectedUser.id === currentUserId || Boolean(isDeletingId)}
+            >
+              {isDeletingId ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
+              삭제
+            </Button>
+          </div>
         </div>
 
         <div className="overflow-hidden rounded-lg border border-[#d8e0ea] bg-white shadow-[0_10px_34px_rgba(15,28,48,0.06)]">
@@ -467,7 +500,11 @@ export function UserManagementTable({
                   openEditDialog(event.data);
                 }
               }}
-              rowSelection="single"
+              rowSelection={{ mode: "singleRow" }}
+              onSelectionChanged={(event: SelectionChangedEvent<AppUserRow>) => {
+                setSelectedUserId(event.api.getSelectedRows()[0]?.id ?? null);
+                setActionError(null);
+              }}
               animateRows={false}
               theme="legacy"
               defaultColDef={{

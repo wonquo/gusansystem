@@ -778,7 +778,7 @@ export function WorkDiaryGrid({
           <div className="flex items-center bg-[#f2f5f9] px-3 py-2 text-[11px] font-semibold whitespace-nowrap text-[#69758a]">
             일자
           </div>
-          <div className="flex min-w-0 items-center gap-2 bg-white px-2 py-1.5">
+          <div className="grid min-w-0 grid-cols-[2rem_minmax(0,1fr)_2rem] items-center gap-2 bg-white px-2 py-1.5">
             <Button
               type="button"
               variant="outline"
@@ -796,7 +796,7 @@ export function WorkDiaryGrid({
                 type="date"
                 value={selectedDate}
                 onChange={(event) => goToSelectedDate(event.target.value)}
-                className="h-9 min-w-0 border-[#d8e0ea] bg-white pr-3 pl-7 text-sm focus-visible:border-[#2f70dc] focus-visible:ring-[#2f70dc]/20"
+                className="h-9 w-full min-w-0 border-[#d8e0ea] bg-white pr-3 pl-7 text-sm focus-visible:border-[#2f70dc] focus-visible:ring-[#2f70dc]/20"
                 disabled={isPending}
               />
             </div>

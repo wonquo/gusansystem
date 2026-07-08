@@ -4,7 +4,7 @@ import { createHmac, randomBytes, scryptSync, timingSafeEqual } from "node:crypt
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
-import { eq, or } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { appUsers, employees, type AppUserRole } from "@/db/schema";
 import { getDb, hasDatabaseUrl } from "@/db";
 import type { AppUserRow } from "./types";
@@ -196,11 +196,11 @@ async function ensureBootstrapAdmin() {
   }
 
   const db = getDb();
-  const existing = await db.query.appUsers.findFirst({
-    where: or(eq(appUsers.loginId, loginId), eq(appUsers.email, email)),
+  const existingAdmin = await db.query.appUsers.findFirst({
+    where: eq(appUsers.role, "admin"),
   });
 
-  if (existing) {
+  if (existingAdmin) {
     return;
   }
 
