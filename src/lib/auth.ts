@@ -59,28 +59,26 @@ export async function canAccessMenu(
     return true;
   }
 
+  if (hasDatabaseUrl()) {
+    const permission = await getDb().query.menuPermissions.findFirst({
+      where: (table, { and, eq }) => and(eq(table.role, role), eq(table.menuKey, menuKey)),
+    });
+    if (permission) {
+      return {
+        view: permission.canView,
+        create: permission.canCreate,
+        update: permission.canUpdate,
+        delete: permission.canDelete,
+        upload: permission.canUpload,
+      }[action];
+    }
+  }
+
   if (role === "employee") {
     return EMPLOYEE_MENU_PERMISSIONS[menuKey]?.includes(action) ?? false;
   }
 
-  if (!hasDatabaseUrl()) {
-    return false;
-  }
-
-  const permission = await getDb().query.menuPermissions.findFirst({
-    where: (table, { and, eq }) => and(eq(table.role, role), eq(table.menuKey, menuKey)),
-  });
-  if (!permission) {
-    return false;
-  }
-
-  return {
-    view: permission.canView,
-    create: permission.canCreate,
-    update: permission.canUpdate,
-    delete: permission.canDelete,
-    upload: permission.canUpload,
-  }[action];
+  return false;
 }
 
 export async function requireAppUser() {
