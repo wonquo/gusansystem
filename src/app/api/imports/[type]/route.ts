@@ -3,10 +3,12 @@ import { hasDatabaseUrl } from "@/db";
 import { parseGenericWorkbook } from "@/lib/erp/generic-import";
 import { parsePayrollWorkbook } from "@/lib/erp/payroll-import";
 import { parseProjectScheduleWorkbook } from "@/lib/erp/project-schedule-import";
+import { createProjectScheduleTemplateWorkbook } from "@/lib/erp/project-schedule-template";
 import { parseProjectWorkbook } from "@/lib/erp/project-import";
 import { decryptWorkbookBuffer, WorkbookDecryptionError } from "@/lib/erp/excel-decryption";
 import {
   listImportBatches,
+  prepareProjectScheduleImportRows,
   saveGenericRowsImport,
   savePayrollImport,
   saveProjectImport,
@@ -21,7 +23,24 @@ type RouteContext = {
   params: Promise<{ type: string }>;
 };
 
-export async function GET() {
+const PROJECT_SCHEDULE_MAX_FILE_SIZE = 10 * 1024 * 1024;
+
+export async function GET(request: Request, context: RouteContext) {
+  const { type } = await context.params;
+  const { searchParams } = new URL(request.url);
+  if (type === "project-schedules" && searchParams.get("template") === "1") {
+    const guard = await requireErpPermission("project-schedules", "upload");
+    if (guard.response) return guard.response;
+    const buffer = await createProjectScheduleTemplateWorkbook();
+    return new NextResponse(new Uint8Array(buffer), {
+      headers: {
+        "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "Content-Disposition":
+          "attachment; filename=project-schedule-upload-sample.xlsx; filename*=UTF-8''%ED%94%84%EB%A1%9C%EC%A0%9D%ED%8A%B8_%EC%97%85%EB%A1%9C%EB%93%9C_%EC%83%98%ED%94%8C.xlsx",
+      },
+    });
+  }
+
   const guard = await requireErpPermission("imports", "view");
   if (guard.response) return guard.response;
   return NextResponse.json({ rows: await listImportBatches() });
@@ -52,6 +71,10 @@ export async function POST(request: Request, context: RouteContext) {
 
     if (!(file instanceof File) || file.size === 0) {
       return NextResponse.json({ error: "엑셀 파일을 선택해주세요." }, { status: 400 });
+    }
+
+    if (type === "project-schedules" && file.size > PROJECT_SCHEDULE_MAX_FILE_SIZE) {
+      return NextResponse.json({ error: "프로젝트 엑셀 파일은 10MB 이하만 업로드할 수 있습니다." }, { status: 400 });
     }
 
     if (!file.name.toLowerCase().endsWith(".xlsx")) {
@@ -122,43 +145,39 @@ export async function POST(request: Request, context: RouteContext) {
 
       if (type === "project-schedules") {
         const result = await parseProjectScheduleWorkbook(buffer);
-        const previewRows = result.rows.slice(0, 50).map((row) => ({
-          projectType: row.projectType,
-          sourceSheetName: row.sheetName,
-          sourceRowNumber: row.sourceRowNumber,
-          projectCode: row.projectCode,
-          projectName: row.projectName,
-          taskDescription: row.taskDescription,
-          destinationName: row.destinationName,
-          managerName: row.managerName,
-          projectMonth: row.projectMonth,
-          status: row.status,
-          expenseMemo: row.expenseMemo,
-          itemCount: row.items.length,
-        }));
-        if (action === "preview" || !hasDatabaseUrl()) {
+        const preparedRows = await prepareProjectScheduleImportRows(result.rows);
+        if (action === "preview") {
+          return NextResponse.json(
+            { error: "프로젝트 엑셀 미리보기 기능은 지원하지 않습니다." },
+            { status: 400 },
+          );
+        }
+        if (!hasDatabaseUrl()) {
           return NextResponse.json({
-            fileName: file.name,
-            detectedType: result.detectedType,
-            sheets: result.sheets,
-            previewRows,
-            errors: result.errors.map((error) => ({ message: error.message })),
-            canCommit: Boolean(hasDatabaseUrl() && result.rows.length),
+            errors: [{ message: "데이터베이스 연결이 없어 프로젝트를 저장할 수 없습니다." }],
           });
+        }
+        if (result.errors.length) {
+          return NextResponse.json(
+            {
+              error: "검증 오류를 수정한 뒤 다시 업로드해 주세요.",
+              errors: result.errors.map((error) => ({ message: error.message })),
+            },
+            { status: 400 },
+          );
         }
         const batch = await saveProjectScheduleImport({
           fileName: file.name,
           importType: type,
           sheetName: result.sheets[0] ?? "Workbook",
           importedBy: guard.user.id,
-          rows: result.rows,
+          rows: preparedRows,
           errors: result.errors,
         });
         return NextResponse.json({
           batch,
           detectedType: result.detectedType,
           sheets: result.sheets,
-          previewRows,
           errors: result.errors.map((error) => ({ message: error.message })),
         });
       }

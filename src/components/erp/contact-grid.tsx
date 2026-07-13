@@ -82,7 +82,6 @@ export function ContactGrid({
   const [draft, setDraft] = useState<ContactDraft>(EMPTY_DRAFT);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const columnDefs = useMemo<ColDef<ContactRow>[]>(
@@ -192,7 +191,6 @@ export function ContactGrid({
           }
           setRows(body.rows ?? []);
           setSelectedRow(body.rows?.[0] ?? null);
-          setNotice(null);
         } catch (fetchError) {
           setError(fetchError instanceof Error ? fetchError.message : "연락처 조회에 실패했습니다.");
         }
@@ -218,13 +216,11 @@ export function ContactGrid({
       memo: row.memo,
     });
     setIsDialogOpen(true);
-    setNotice(null);
   }
 
   function openNewContact() {
     setDraft(EMPTY_DRAFT);
     setIsDialogOpen(true);
-    setNotice(null);
   }
 
   function saveContact() {
@@ -264,7 +260,6 @@ export function ContactGrid({
         setRows((current) => [contact, ...current.filter((row) => row.id !== contact.id)]);
         setSelectedRow(contact);
         setDraft(toDraft(contact));
-        setNotice("연락처를 저장했습니다.");
         setIsDialogOpen(false);
       } catch (saveError) {
         setError(saveError instanceof Error ? saveError.message : "연락처 저장에 실패했습니다.");
@@ -274,7 +269,7 @@ export function ContactGrid({
 
   function deleteCurrentContact(row = selectedRow) {
     if (!row) {
-      setNotice("삭제할 연락처를 선택해 주세요.");
+      setError("삭제할 연락처를 선택해 주세요.");
       return;
     }
     if (!canDelete) {
@@ -295,7 +290,6 @@ export function ContactGrid({
         }
         setRows((current) => current.filter((item) => item.id !== row.id));
         setSelectedRow(null);
-        setNotice("연락처를 삭제했습니다.");
         setIsDialogOpen(false);
       } catch (deleteError) {
         setError(deleteError instanceof Error ? deleteError.message : "연락처 삭제에 실패했습니다.");
@@ -398,13 +392,6 @@ export function ContactGrid({
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       ) : null}
-      {notice ? (
-        <Alert className="border-[#bfd2f5] bg-[#eef4ff] text-[#1f4f9f]">
-          <AlertTitle>처리 완료</AlertTitle>
-          <AlertDescription>{notice}</AlertDescription>
-        </Alert>
-      ) : null}
-
       <div className="relative min-h-0 flex-1 overflow-y-auto md:hidden">
         {isPending ? (
           <div className="sticky inset-x-0 top-0 z-10 h-0.5 overflow-hidden bg-[#dbe7fb]">

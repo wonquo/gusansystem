@@ -96,6 +96,7 @@ export function ErpGrid({
   payrollScope = "all",
   deleteEnabled = false,
   createEnabled = false,
+  showRowNumber = true,
 }: {
   title: string;
   rows: Record<string, unknown>[];
@@ -107,6 +108,7 @@ export function ErpGrid({
   payrollScope?: ErpGridPayrollScope;
   deleteEnabled?: boolean;
   createEnabled?: boolean;
+  showRowNumber?: boolean;
   detail?: (row: Record<string, unknown>, helpers: ErpGridDetailHelpers) => ReactNode;
 }) {
   const [gridRows, setGridRows] = useState(rows);
@@ -120,7 +122,6 @@ export function ErpGrid({
   const [password, setPassword] = useState("");
   const [preview, setPreview] = useState<Record<string, unknown>[] | null>(null);
   const [errors, setErrors] = useState<{ message?: string }[]>([]);
-  const [notice, setNotice] = useState<string | null>(null);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
   const [isFileDragging, setIsFileDragging] = useState(false);
@@ -149,56 +150,56 @@ export function ErpGrid({
     setIsDetailDialogOpen(true);
   }, []);
 
-  const columnDefs = useMemo<ColDef[]>(
-    () =>
-      [
-        {
-          colId: "rowNumber",
-          headerName: "No",
-          width: 56,
-          minWidth: 56,
-          maxWidth: 56,
-          pinned: "left",
-          sortable: false,
-          filter: false,
-          resizable: false,
-          suppressMovable: true,
-          cellClass: "erp-grid-cell erp-grid-cell-row-number",
-          valueGetter: (params: ValueGetterParams<Record<string, unknown>>) =>
-            params.node?.rowPinned ? "합계" : (params.node?.rowIndex ?? 0) + 1,
-        },
-        ...columns.map((column) => {
-          const isNumeric = column.type === "money" || isNumericField(column.field);
-          const isStatus = STATUS_FIELDS.has(column.field);
+  const columnDefs = useMemo<ColDef[]>(() => {
+    const rowNumberColumn: ColDef = {
+      colId: "rowNumber",
+      headerName: "No",
+      width: 56,
+      minWidth: 56,
+      maxWidth: 56,
+      pinned: "left",
+      sortable: false,
+      filter: false,
+      resizable: false,
+      suppressMovable: true,
+      cellClass: "erp-grid-cell erp-grid-cell-row-number",
+      valueGetter: (params: ValueGetterParams<Record<string, unknown>>) =>
+        params.node?.rowPinned ? "합계" : (params.node?.rowIndex ?? 0) + 1,
+    };
 
-          return {
-            field: column.field,
-            headerName: column.headerName,
-            width: column.width,
-            sortable: true,
-            filter: true,
-            resizable: true,
-            cellClass: cn(
-              "erp-grid-cell",
-              isNumeric && "erp-grid-cell-number",
-              column.type === "date" && "erp-grid-cell-date",
-            ),
-            valueFormatter:
-              column.type === "money"
-                ? (params: ValueFormatterParams<Record<string, unknown>>) => formatMoney(params.value)
-                : column.type === "date"
-                  ? (params: ValueFormatterParams<Record<string, unknown>>) => formatDate(params.value)
-                  : undefined,
-            cellRenderer: isStatus
-              ? (params: ICellRendererParams<Record<string, unknown>>) => (
-                  <GridValueBadge value={params.value} field={column.field} />
-                )
-              : undefined,
-          };
-        }),
-      ],
-    [columns],
-  );
+    return [
+      ...(showRowNumber ? [rowNumberColumn] : []),
+      ...columns.map((column) => {
+        const isNumeric = column.type === "money" || isNumericField(column.field);
+        const isStatus = STATUS_FIELDS.has(column.field);
+
+        return {
+          field: column.field,
+          headerName: column.headerName,
+          width: column.width,
+          sortable: true,
+          filter: true,
+          resizable: true,
+          cellClass: cn(
+            "erp-grid-cell",
+            isNumeric && "erp-grid-cell-number",
+            column.type === "date" && "erp-grid-cell-date",
+          ),
+          valueFormatter:
+            column.type === "money"
+              ? (params: ValueFormatterParams<Record<string, unknown>>) => formatMoney(params.value)
+              : column.type === "date"
+                ? (params: ValueFormatterParams<Record<string, unknown>>) => formatDate(params.value)
+                : undefined,
+          cellRenderer: isStatus
+            ? (params: ICellRendererParams<Record<string, unknown>>) => (
+                <GridValueBadge value={params.value} field={column.field} />
+              )
+            : undefined,
+        };
+      }),
+    ];
+  }, [columns, showRowNumber]);
 
   const filteredRows = useMemo(() => {
     if (isPayrollSearch) {
@@ -357,7 +358,6 @@ export function ErpGrid({
     setPassword("");
     setPreview(null);
     setErrors([]);
-    setNotice(null);
     setIsUploadOpen(true);
   }
 
@@ -365,14 +365,12 @@ export function ErpGrid({
     setFile(nextFile);
     setPreview(null);
     setErrors([]);
-    setNotice(null);
   }
 
   function clearUploadFile() {
     setFile(null);
     setPreview(null);
     setErrors([]);
-    setNotice(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -390,7 +388,6 @@ export function ErpGrid({
       return;
     }
     setErrors([]);
-    setNotice(null);
     const formData = new FormData();
     formData.set("file", file);
     formData.set("password", password);
@@ -409,7 +406,6 @@ export function ErpGrid({
       setPreview(data.previewRows ?? []);
       setErrors(data.errors ?? []);
       if (action === "commit") {
-        setNotice(`저장 완료: ${data.previewRows?.length ?? 0}건`);
         if (!data.errors?.length) {
           setIsUploadOpen(false);
         }
@@ -588,14 +584,6 @@ export function ErpGrid({
             ) : null}
           </div>
         </div>
-
-        {notice ? (
-          <Alert className="border-[#bfd2f5] bg-[#eef4ff] text-[#1f4f9f]">
-            <AlertCircle className="size-4" />
-            <AlertTitle>처리 완료</AlertTitle>
-            <AlertDescription>{notice}</AlertDescription>
-          </Alert>
-        ) : null}
 
         <div className="relative min-h-0 flex-1 overflow-hidden rounded-lg border border-[#d8e0ea] bg-white shadow-[0_10px_34px_rgba(15,28,48,0.06)]">
           {isPending ? (

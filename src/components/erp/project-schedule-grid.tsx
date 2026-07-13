@@ -8,11 +8,12 @@ import {
   type ColDef,
   type GridReadyEvent,
   type ICellRendererParams,
-  type ValueFormatterParams,
 } from "ag-grid-community";
 import {
   CalendarDays,
+  CircleAlert,
   ClipboardList,
+  FileDown,
   FileSpreadsheet,
   FileUp,
   Loader2,
@@ -30,6 +31,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogHeader,
@@ -49,7 +51,6 @@ import {
   ProjectScheduleStatusManager,
   statusBadgeStyle,
 } from "@/components/erp/project-schedule-status-manager";
-import { formatMoney } from "@/components/erp/payroll-slip-view";
 import type { ProjectScheduleStatusOptionRow } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -101,6 +102,12 @@ type DraftItem = {
   sortOrder: number;
 };
 
+type ProjectScheduleExportColumn = {
+  header: string;
+  width: number;
+  value: (row: ProjectScheduleRow, index: number) => string | number;
+};
+
 type Permissions = {
   canCreate: boolean;
   canUpdate: boolean;
@@ -113,6 +120,7 @@ const PROJECT_TYPE_LABELS: Record<ProjectType, string> = {
   sub: "SUB",
 };
 const PROJECT_STATUS_EMPTY = "__empty_project_schedule_status__";
+const PROJECT_SCHEDULE_MAX_FILE_SIZE = 10 * 1024 * 1024;
 
 export function ProjectScheduleGrid({
   mainRows,
@@ -137,11 +145,10 @@ export function ProjectScheduleGrid({
   const [isStatusOpen, setIsStatusOpen] = useState(false);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [file, setFile] = useState<File | null>(null);
-  const [password, setPassword] = useState("");
-  const [preview, setPreview] = useState<Record<string, unknown>[] | null>(null);
   const [errors, setErrors] = useState<{ message?: string }[]>([]);
-  const [notice, setNotice] = useState<string | null>(null);
   const [isFileDragging, setIsFileDragging] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [isDownloadingTemplate, setIsDownloadingTemplate] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -167,7 +174,6 @@ export function ProjectScheduleGrid({
         row.projectMonth,
         row.status,
         row.memo,
-        row.expenseMemo,
       ].some((value) => String(value ?? "").toLowerCase().includes(text)),
     );
   }, [activeRows, query]);
@@ -195,7 +201,7 @@ export function ProjectScheduleGrid({
     if (activeType === "main") {
       return [
         ...common,
-        { field: "destinationName", headerName: "행선지", width: 170 },
+        { field: "destinationName", headerName: "설치장소", width: 170 },
         {
           field: "controlManagerName",
           headerName: "제어부 담당",
@@ -225,7 +231,7 @@ export function ProjectScheduleGrid({
     return [
       ...common,
       { field: "managerName", headerName: "담당자", width: 170 },
-      { field: "projectMonth", headerName: "월", width: 110 },
+      { field: "projectMonth", headerName: "행선지", width: 110 },
       {
         field: "status",
         headerName: "상태",
@@ -235,14 +241,6 @@ export function ProjectScheduleGrid({
         ),
       },
       { field: "memo", headerName: "비고", width: 180 },
-      { field: "expenseMemo", headerName: "집행금액(자재)", width: 180 },
-      {
-        field: "expenseAmount",
-        headerName: "집행금액",
-        width: 130,
-        cellClass: "erp-grid-cell erp-grid-cell-number",
-        valueFormatter: (params: ValueFormatterParams<ProjectScheduleRow>) => formatMoney(params.value),
-      },
       { field: "itemCount", headerName: "일정", width: 90, cellClass: "erp-grid-cell erp-grid-cell-number" },
     ];
   }, [activeType, statusByLabel]);
@@ -321,25 +319,39 @@ export function ProjectScheduleGrid({
 
   function openUploadDialog() {
     setFile(null);
-    setPassword("");
-    setPreview(null);
     setErrors([]);
-    setNotice(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
     setIsUploadOpen(true);
   }
 
-  function upload(action: "preview" | "commit") {
+  function selectUploadFile(nextFile: File | null) {
+    setErrors([]);
+    if (!nextFile) {
+      setFile(null);
+      return;
+    }
+    if (!nextFile.name.toLowerCase().endsWith(".xlsx")) {
+      setFile(null);
+      setErrors([{ message: ".xlsx 파일만 업로드할 수 있습니다." }]);
+      return;
+    }
+    if (nextFile.size > PROJECT_SCHEDULE_MAX_FILE_SIZE) {
+      setFile(null);
+      setErrors([{ message: "프로젝트 엑셀 파일은 10MB 이하만 업로드할 수 있습니다." }]);
+      return;
+    }
+    setFile(nextFile);
+  }
+
+  function upload() {
     if (!file) {
       setErrors([{ message: "업로드할 엑셀 파일을 선택해주세요." }]);
       return;
     }
     const formData = new FormData();
     formData.set("file", file);
-    formData.set("password", password);
-    formData.set("action", action);
+    formData.set("action", "commit");
     setErrors([]);
-    setNotice(null);
 
     startTransition(async () => {
       const response = await fetch("/api/imports/project-schedules", {
@@ -348,21 +360,109 @@ export function ProjectScheduleGrid({
       });
       const data = await response.json();
       if (!response.ok) {
-        setErrors([{ message: data.error ?? "업로드에 실패했습니다." }]);
+        setErrors(data.errors?.length ? data.errors : [{ message: data.error ?? "업로드에 실패했습니다." }]);
         return;
       }
-      setPreview(data.previewRows ?? []);
-      setErrors(data.errors ?? []);
-      if (action === "commit") {
-        setNotice(`저장 완료: ${data.previewRows?.length ?? 0}건`);
-        if (!data.errors?.length) {
-          setIsUploadOpen(false);
-        }
-        const [latestMainRows, latestSubRows] = await Promise.all([fetchRows("main"), fetchRows("sub")]);
-        setRowsByType({ main: latestMainRows, sub: latestSubRows });
-        setSelected((activeType === "main" ? latestMainRows : latestSubRows)[0] ?? null);
+      if (!data.batch) {
+        setErrors(
+          data.errors?.length
+            ? data.errors
+            : [{ message: "프로젝트 데이터를 저장하지 못했습니다. 데이터베이스 연결을 확인해 주세요." }],
+        );
+        return;
       }
+      setIsUploadOpen(false);
+      const [latestMainRows, latestSubRows] = await Promise.all([fetchRows("main"), fetchRows("sub")]);
+      setRowsByType({ main: latestMainRows, sub: latestSubRows });
+      setSelected((activeType === "main" ? latestMainRows : latestSubRows)[0] ?? null);
     });
+  }
+
+  async function downloadUploadTemplate() {
+    if (isDownloadingTemplate) return;
+    setIsDownloadingTemplate(true);
+    setErrors([]);
+    try {
+      const response = await fetch("/api/imports/project-schedules?template=1");
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        throw new Error(data?.error ?? "업로드 샘플 다운로드에 실패했습니다.");
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "프로젝트_업로드_샘플.xlsx";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      setErrors([
+        { message: error instanceof Error ? error.message : "업로드 샘플 다운로드에 실패했습니다." },
+      ]);
+    } finally {
+      setIsDownloadingTemplate(false);
+    }
+  }
+
+  async function downloadExcel() {
+    if (!filteredRows.length || isDownloading) {
+      return;
+    }
+
+    setIsDownloading(true);
+    try {
+      const { default: ExcelJS } = await import("exceljs");
+      const workbook = new ExcelJS.Workbook();
+      const sheetName = `${PROJECT_TYPE_LABELS[activeType]} PROJECT`;
+      const worksheet = workbook.addWorksheet(sheetName);
+      const columns = getProjectScheduleExportColumns(activeType);
+
+      worksheet.views = [{ state: "frozen", ySplit: 1 }];
+      worksheet.properties.defaultRowHeight = 20;
+      worksheet.addRow(columns.map((column) => column.header));
+      filteredRows.forEach((row, index) => {
+        worksheet.addRow(columns.map((column) => column.value(row, index)));
+      });
+
+      const headerRow = worksheet.getRow(1);
+      headerRow.height = 24;
+      headerRow.eachCell((cell) => {
+        cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1F4E78" } };
+        cell.alignment = { horizontal: "center", vertical: "middle" };
+      });
+      columns.forEach((column, index) => {
+        worksheet.getColumn(index + 1).width = column.width;
+      });
+      worksheet.eachRow((row, rowNumber) => {
+        if (rowNumber === 1) return;
+        row.alignment = { vertical: "middle", wrapText: true };
+      });
+      worksheet.autoFilter = {
+        from: { row: 1, column: 1 },
+        to: { row: 1, column: columns.length },
+      };
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const fileName = `프로젝트_${PROJECT_TYPE_LABELS[activeType]}_${localDateText()}.xlsx`;
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "엑셀 다운로드에 실패했습니다.");
+    } finally {
+      setIsDownloading(false);
+    }
   }
 
   return (
@@ -438,6 +538,17 @@ export function ProjectScheduleGrid({
               상태 관리
             </Button>
           ) : null}
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="bg-white"
+            onClick={() => void downloadExcel()}
+            disabled={isDownloading || filteredRows.length === 0}
+          >
+            {isDownloading ? <Loader2 className="size-3.5 animate-spin" /> : <FileDown className="size-3.5" />}
+            엑셀 다운로드
+          </Button>
           {permissions.canUpload ? (
             <Button type="button" size="sm" onClick={openUploadDialog} disabled={isPending}>
               <FileUp className="size-3.5" />
@@ -446,13 +557,6 @@ export function ProjectScheduleGrid({
           ) : null}
         </div>
       </div>
-
-      {notice ? (
-        <Alert className="border-[#bfd2f5] bg-[#eef4ff] text-[#1f4f9f]">
-          <AlertTitle>처리 완료</AlertTitle>
-          <AlertDescription>{notice}</AlertDescription>
-        </Alert>
-      ) : null}
 
       <section className="relative min-h-0 flex-1 overflow-hidden rounded-lg border border-[#d8e0ea] bg-white shadow-[0_10px_34px_rgba(15,28,48,0.06)]">
         {isPending ? (
@@ -505,7 +609,7 @@ export function ProjectScheduleGrid({
       </section>
 
       <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-        <DialogContent className="flex max-h-[calc(100vh-24px)] w-[calc(100vw-20px)] !max-w-[1540px] flex-col overflow-hidden p-0 sm:max-h-[92vh] xl:w-[calc(100vw-48px)]">
+        <DialogContent className="flex max-h-[calc(100vh-24px)] w-[calc(100vw-20px)] !max-w-[1078px] flex-col overflow-hidden p-0 sm:max-h-[92vh] xl:w-[70vw]">
           <DialogHeader className="shrink-0 border-b border-[#d8e0ea] bg-[#f8fafc] px-4 py-3">
             <DialogTitle className="text-sm text-[#0d1b3d]">
               {selected?.__isNew ? "신규 프로젝트" : "프로젝트 상세"}
@@ -544,122 +648,183 @@ export function ProjectScheduleGrid({
 
       {permissions.canUpload ? (
         <Dialog open={isUploadOpen} onOpenChange={setIsUploadOpen}>
-          <DialogContent className="max-h-[86vh] overflow-y-auto sm:max-w-xl">
-            <DialogHeader>
-              <DialogTitle>프로젝트 엑셀 업로드</DialogTitle>
-              <DialogDescription>MAIN/SUB PROJECT 시트가 있는 .xlsx 파일을 선택하세요.</DialogDescription>
+          <DialogContent className="max-h-[calc(100vh-24px)] gap-0 overflow-hidden p-0 sm:max-h-[88vh] sm:max-w-[720px]">
+            <DialogHeader className="shrink-0 border-b border-[#e1e7ef] px-5 py-4 pr-12">
+              <DialogTitle className="text-[15px] font-semibold text-[#17233b]">프로젝트 엑셀 업로드</DialogTitle>
             </DialogHeader>
 
-            <div className="grid gap-4">
-              <div className="grid gap-2">
-                <div className="flex items-center justify-between gap-3">
-                  <Label htmlFor="project-schedule-upload-file">엑셀 파일</Label>
-                  <span className="text-[11px] font-medium text-[#7b8798]">.xlsx 권장</span>
-                </div>
-                <Input
-                  ref={fileInputRef}
-                  id="project-schedule-upload-file"
-                  type="file"
-                  accept=".xlsx,.xls"
-                  onChange={(event) => {
-                    setFile(event.target.files?.[0] ?? null);
-                    setPreview(null);
-                    setErrors([]);
-                  }}
-                  className="sr-only"
-                />
-                <button
-                  type="button"
-                  onDragEnter={() => setIsFileDragging(true)}
-                  onDragLeave={() => setIsFileDragging(false)}
-                  onDragOver={(event: DragEvent<HTMLButtonElement>) => event.preventDefault()}
-                  onDrop={(event: DragEvent<HTMLButtonElement>) => {
-                    event.preventDefault();
-                    setIsFileDragging(false);
-                    setFile(event.dataTransfer.files?.[0] ?? null);
-                    setPreview(null);
-                    setErrors([]);
-                  }}
-                  onClick={() => fileInputRef.current?.click()}
-                  className={cn(
-                    "flex min-h-32 cursor-pointer flex-col justify-between gap-4 rounded-lg border border-dashed bg-[#f8fafc] p-4 text-left transition-colors focus-visible:ring-2 focus-visible:ring-[#2f70dc]/20 focus-visible:outline-none",
-                    file
-                      ? "border-[#86a9e8] bg-[#f3f7ff]"
-                      : "border-[#c4d0df] hover:border-[#2f70dc] hover:bg-[#f5f8fd]",
-                    isFileDragging && "border-[#2f70dc] bg-[#eef4ff]",
-                  )}
-                >
-                  <div className="flex items-start gap-3">
-                    <span className="flex size-11 shrink-0 items-center justify-center rounded-lg border border-[#d8e0ea] bg-white text-[#2f70dc]">
-                      {file ? <FileSpreadsheet className="size-5" /> : <UploadCloud className="size-5" />}
-                    </span>
-                    <span className="min-w-0 space-y-1">
-                      <span className="block text-sm font-semibold text-[#0d1b3d]">
-                        {file ? file.name : "파일을 선택하거나 여기로 끌어오세요"}
-                      </span>
-                      <span className="block text-xs text-[#69758a]">
-                        {file ? `${formatFileSize(file.size)} / 선택 완료` : "암호가 있으면 아래에 입력하세요."}
-                      </span>
-                    </span>
+            <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-5 py-4">
+              <div className="grid gap-5">
+                <section className="rounded-lg border border-[#d7e0eb] bg-[#f8fafc] p-3.5" aria-labelledby="upload-guide-title">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <CircleAlert className="size-4 text-[#526b91]" />
+                        <h3 id="upload-guide-title" className="text-xs font-semibold text-[#26344d]">업로드 전 확인</h3>
+                      </div>
+                      <ul className="mt-2 grid gap-1 text-[11px] leading-5 text-[#5c687b] sm:text-xs">
+                        <li><b className="font-semibold text-[#34435b]">시트</b> · MAIN PROJECT 또는 SUB PROJECT, 프로젝트명 필수</li>
+                        <li><b className="font-semibold text-[#34435b]">코드</b> · 공란이면 MAIN은 GSTMYY_###, SUB는 GSTSYY_###로 자동 생성</li>
+                        <li><b className="font-semibold text-[#34435b]">반영</b> · 같은 코드는 갱신하고 자동 생성 코드는 신규 저장</li>
+                      </ul>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="shrink-0 self-end bg-white sm:self-auto"
+                      onClick={() => void downloadUploadTemplate()}
+                      disabled={isDownloadingTemplate || isPending}
+                    >
+                      {isDownloadingTemplate ? (
+                        <Loader2 className="size-3.5 animate-spin" />
+                      ) : (
+                        <FileDown className="size-3.5" />
+                      )}
+                      <span className="hidden sm:inline">샘플 양식</span>
+                      <span className="sm:hidden">샘플</span>
+                    </Button>
                   </div>
-                </button>
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="project-schedule-upload-password">암호</Label>
-                <Input
-                  id="project-schedule-upload-password"
-                  type="password"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  placeholder="암호가 없으면 비워두세요"
-                />
-              </div>
-              {errors.length ? (
-                <Alert variant="destructive">
-                  <AlertTitle>확인 필요</AlertTitle>
-                  <AlertDescription>{errors.map((error) => error.message).join("\n")}</AlertDescription>
-                </Alert>
-              ) : null}
-              {preview?.length ? (
-                <div className="max-h-52 overflow-auto rounded-lg border border-[#d8e0ea]">
-                  <table className="w-full min-w-[560px] text-xs">
-                    <thead className="sticky top-0 bg-[#f3f6fa] text-[#5d6b80]">
-                      <tr>
-                        <th className="px-2 py-2 text-left">구분</th>
-                        <th className="px-2 py-2 text-left">관리번호</th>
-                        <th className="px-2 py-2 text-left">프로젝트</th>
-                        <th className="px-2 py-2 text-right">일정</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {preview.slice(0, 20).map((row, index) => (
-                        <tr key={index} className="border-t border-[#edf1f6]">
-                          <td className="px-2 py-1.5">{String(row.projectType ?? "")}</td>
-                          <td className="px-2 py-1.5">{String(row.projectCode ?? "")}</td>
-                          <td className="px-2 py-1.5">{String(row.projectName ?? "")}</td>
-                          <td className="px-2 py-1.5 text-right">{String(row.itemCount ?? 0)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                </section>
+
+                <div className="grid gap-2">
+                  <div className="flex items-end justify-between gap-3">
+                    <div>
+                      <Label htmlFor="project-schedule-upload-file" className="text-xs font-semibold text-[#26344d]">엑셀 파일</Label>
+                      <p className="mt-0.5 text-[11px] text-[#7a8698]">.xlsx 형식 · 최대 10MB</p>
+                    </div>
+                    {file ? (
+                      <span className={cn(
+                        "rounded-full px-2 py-1 text-[10px] font-semibold",
+                        errors.length
+                          ? "bg-[#fff0f0] text-[#c43c3c]"
+                          : "bg-[#edf4ff] text-[#245db3]",
+                      )}>
+                        {errors.length ? "확인 필요" : "선택 완료"}
+                      </span>
+                    ) : null}
+                  </div>
+                  <Input
+                    ref={fileInputRef}
+                    id="project-schedule-upload-file"
+                    type="file"
+                    accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    onChange={(event) => selectUploadFile(event.target.files?.[0] ?? null)}
+                    className="hidden"
+                  />
+                  <button
+                    type="button"
+                    onDragEnter={() => setIsFileDragging(true)}
+                    onDragLeave={() => setIsFileDragging(false)}
+                    onDragOver={(event: DragEvent<HTMLButtonElement>) => event.preventDefault()}
+                    onDrop={(event: DragEvent<HTMLButtonElement>) => {
+                      event.preventDefault();
+                      setIsFileDragging(false);
+                      selectUploadFile(event.dataTransfer.files?.[0] ?? null);
+                    }}
+                    onClick={() => fileInputRef.current?.click()}
+                    className={cn(
+                      "flex min-h-36 w-full cursor-pointer items-center justify-center rounded-lg border border-dashed px-5 py-6 text-center transition-all focus-visible:ring-2 focus-visible:ring-[#2f70dc]/25 focus-visible:outline-none",
+                      file
+                        ? "border-[#91afe0] bg-[#f4f7fd] hover:border-[#6590d5]"
+                        : "border-[#b8c6d8] bg-white hover:border-[#2f70dc] hover:bg-[#f8fbff]",
+                      isFileDragging && "scale-[0.995] border-[#2f70dc] bg-[#eef4ff]",
+                    )}
+                  >
+                    <span className="flex min-w-0 flex-col items-center">
+                      <span className={cn(
+                        "mb-3 flex size-11 items-center justify-center rounded-xl border bg-white shadow-sm",
+                        file ? "border-[#c9d8ef] text-[#2f70dc]" : "border-[#dbe3ed] text-[#5c7191]",
+                      )}>
+                        {file ? <FileSpreadsheet className="size-5" /> : <UploadCloud className="size-5" />}
+                      </span>
+                      <span className="block max-w-full truncate text-sm font-semibold text-[#17233b]">
+                        {file ? file.name : "파일을 끌어놓거나 클릭해 선택하세요"}
+                      </span>
+                      <span className="mt-1 block text-xs text-[#69758a]">
+                        {file ? `${formatFileSize(file.size)} · 클릭하면 파일 변경` : "샘플 양식에 맞는 Excel 통합 문서"}
+                      </span>
+                    </span>
+                  </button>
                 </div>
-              ) : null}
+
+                {errors.length ? (
+                  <Alert variant="destructive" className="border-[#f0b8b8] bg-[#fff7f7] px-3 py-3">
+                    <CircleAlert className="size-4" />
+                    <AlertTitle className="text-xs font-semibold">파일을 다시 확인해 주세요</AlertTitle>
+                    <AlertDescription className="whitespace-pre-line text-xs leading-5">
+                      {errors.map((error) => error.message).join("\n")}
+                    </AlertDescription>
+                  </Alert>
+                ) : null}
+              </div>
             </div>
-            <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => upload("preview")} disabled={isPending || !file}>
-                {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <FileSpreadsheet className="size-3.5" />}
-                미리보기
-              </Button>
-              <Button type="button" onClick={() => upload("commit")} disabled={isPending || !file}>
-                {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
-                저장
-              </Button>
+
+            <div className="flex shrink-0 flex-col gap-2 border-t border-[#e1e7ef] bg-[#f8fafc] px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="hidden text-[11px] text-[#69758a] sm:block">
+                {errors.length
+                  ? "오류를 수정한 파일로 다시 업로드해 주세요."
+                  : file
+                    ? "선택한 파일을 프로젝트에 바로 반영합니다."
+                    : "업로드할 파일을 먼저 선택해 주세요."}
+              </p>
+              <div className="flex justify-end gap-2">
+                <Button
+                  type="button"
+                  onClick={upload}
+                  disabled={isPending || !file}
+                >
+                  {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
+                  업로드
+                </Button>
+                <DialogClose asChild>
+                  <Button type="button" variant="ghost">취소</Button>
+                </DialogClose>
+              </div>
             </div>
           </DialogContent>
         </Dialog>
       ) : null}
     </div>
   );
+}
+
+function getProjectScheduleExportColumns(type: ProjectType): ProjectScheduleExportColumn[] {
+  const commonColumns: ProjectScheduleExportColumn[] = [
+    { header: "No", width: 8, value: (_row, index) => index + 1 },
+    { header: "관리번호", width: 16, value: (row) => String(row.projectCode ?? "") },
+    { header: "프로젝트", width: 32, value: (row) => String(row.projectName ?? "") },
+    { header: "업무내용", width: 42, value: (row) => String(row.taskDescription ?? "") },
+  ];
+
+  if (type === "main") {
+    return [
+      ...commonColumns,
+      { header: "설치장소", width: 22, value: (row) => String(row.destinationName ?? "") },
+      { header: "제어부 담당", width: 20, value: (row) => String(row.controlManagerName ?? "") },
+      { header: "설비부 담당", width: 20, value: (row) => String(row.facilityManagerName ?? "") },
+      { header: "상태", width: 16, value: (row) => String(row.status ?? "") },
+      { header: "비고", width: 24, value: (row) => String(row.memo ?? "") },
+      { header: "일정", width: 10, value: (row) => Number(row.itemCount ?? 0) },
+    ];
+  }
+
+  return [
+    ...commonColumns,
+    { header: "담당자", width: 20, value: (row) => String(row.managerName ?? "") },
+    { header: "행선지", width: 18, value: (row) => String(row.projectMonth ?? "") },
+    { header: "상태", width: 16, value: (row) => String(row.status ?? "") },
+    { header: "비고", width: 24, value: (row) => String(row.memo ?? "") },
+    { header: "일정", width: 10, value: (row) => Number(row.itemCount ?? 0) },
+  ];
+}
+
+function localDateText() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function ProjectScheduleDetail({
@@ -688,11 +853,8 @@ function ProjectScheduleDetail({
   const [managerName, setManagerName] = useState(String(row.managerName ?? ""));
   const [projectMonth, setProjectMonth] = useState(String(row.projectMonth ?? ""));
   const [status, setStatus] = useState(String(row.status ?? ""));
-  const [expenseMemo, setExpenseMemo] = useState(String(row.expenseMemo ?? ""));
-  const [expenseAmount, setExpenseAmount] = useState(String(row.expenseAmount ?? ""));
   const [memo, setMemo] = useState(String(row.memo ?? ""));
   const [items, setItems] = useState<DraftItem[]>(() => toDraftItems(row.items));
-  const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const selectableStatusOptions = useMemo(
@@ -728,7 +890,6 @@ function ProjectScheduleDetail({
 
   function save() {
     setError(null);
-    setMessage(null);
     const payload = {
       projectType: row.projectType,
       projectCode,
@@ -740,8 +901,8 @@ function ProjectScheduleDetail({
       managerName: row.projectType === "main" ? combineManagerNames(controlManagerName, facilityManagerName) : managerName,
       projectMonth,
       status,
-      expenseMemo,
-      expenseAmount,
+      expenseMemo: row.expenseMemo,
+      expenseAmount: row.expenseAmount,
       memo,
       items: items.map((item, index) => ({
         scheduleDate: item.scheduleDate,
@@ -766,7 +927,6 @@ function ProjectScheduleDetail({
         return;
       }
       replaceRow(data.row);
-      setMessage(isNew ? "프로젝트가 등록되었습니다." : "프로젝트가 저장되었습니다.");
     });
   }
 
@@ -834,7 +994,7 @@ function ProjectScheduleDetail({
 
               {row.projectType === "main" ? (
                 <>
-                  <DetailLabel label="행선지" />
+                  <DetailLabel label="설치장소" />
                   <DetailBox>
                     <Input
                       value={destinationName}
@@ -853,7 +1013,28 @@ function ProjectScheduleDetail({
                     />
                   </DetailBox>
                 </>
-              ) : null}
+              ) : (
+                <>
+                  <DetailLabel label="행선지" />
+                  <DetailBox>
+                    <Input
+                      value={projectMonth}
+                      onChange={(event) => setProjectMonth(event.target.value)}
+                      disabled={!editable}
+                      className="h-8 border-transparent bg-transparent px-0 shadow-none focus-visible:border-[#2f70dc] focus-visible:px-2"
+                    />
+                  </DetailBox>
+                  <DetailLabel label="상태" />
+                  <DetailBox>
+                    <StatusSelect
+                      value={status}
+                      onChange={setStatus}
+                      disabled={!editable}
+                      options={selectableStatusOptions}
+                    />
+                  </DetailBox>
+                </>
+              )}
 
               <DetailLabel label="업무내용" />
               <DetailBox className="lg:col-span-3">
@@ -895,37 +1076,16 @@ function ProjectScheduleDetail({
               ) : (
                 <>
                   <DetailLabel label="담당자" />
-                  <DetailBox>
-                    <Input value={managerName} onChange={(event) => setManagerName(event.target.value)} disabled={!editable} className="h-8 border-transparent bg-transparent px-0 shadow-none focus-visible:border-[#2f70dc] focus-visible:px-2" />
-                  </DetailBox>
-                  <DetailLabel label="월" />
-                  <DetailBox>
-                    <Input value={projectMonth} onChange={(event) => setProjectMonth(event.target.value)} disabled={!editable} className="h-8 border-transparent bg-transparent px-0 shadow-none focus-visible:border-[#2f70dc] focus-visible:px-2" />
-                  </DetailBox>
-                  <DetailLabel label="집행금액" />
-                  <DetailBox>
-                    <Input value={expenseAmount} onChange={(event) => setExpenseAmount(event.target.value)} disabled={!editable} className="h-8 border-transparent bg-transparent px-0 text-right font-mono shadow-none focus-visible:border-[#2f70dc] focus-visible:px-2" />
-                  </DetailBox>
-                  <DetailLabel label="자재 메모" />
-                  <DetailBox>
-                    <Input value={expenseMemo} onChange={(event) => setExpenseMemo(event.target.value)} disabled={!editable} className="h-8 border-transparent bg-transparent px-0 shadow-none focus-visible:border-[#2f70dc] focus-visible:px-2" />
-                  </DetailBox>
-                </>
-              )}
-
-              {row.projectType === "sub" ? (
-                <>
-                  <DetailLabel label="상태" />
-                  <DetailBox>
-                    <StatusSelect
-                      value={status}
-                      onChange={setStatus}
+                  <DetailBox className="lg:col-span-3">
+                    <Input
+                      value={managerName}
+                      onChange={(event) => setManagerName(event.target.value)}
                       disabled={!editable}
-                      options={selectableStatusOptions}
+                      className="h-8 border-transparent bg-transparent px-0 shadow-none focus-visible:border-[#2f70dc] focus-visible:px-2"
                     />
                   </DetailBox>
                 </>
-              ) : null}
+              )}
               <DetailLabel label="비고" />
               <DetailBox className="lg:col-span-3">
                 <Textarea
@@ -940,12 +1100,6 @@ function ProjectScheduleDetail({
             </div>
           </section>
 
-          {message ? (
-            <Alert className="border-[#bfd2f5] bg-[#eef4ff] text-[#1f4f9f]">
-              <AlertTitle className="text-xs">완료</AlertTitle>
-              <AlertDescription className="text-xs">{message}</AlertDescription>
-            </Alert>
-          ) : null}
           {error ? (
             <Alert variant="destructive">
               <AlertTitle className="text-xs">확인 필요</AlertTitle>

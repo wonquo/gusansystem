@@ -107,7 +107,6 @@ export function ProjectDetail({
   const [attachments, setAttachments] = useState<DraftAttachment[]>(() => toDraftAttachments(row.rawData));
   const [draggingItemId, setDraggingItemId] = useState<string | null>(null);
   const [editingCell, setEditingCell] = useState<{ localId: string; field: EditableItemField } | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const attachmentInputRef = useRef<HTMLInputElement | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -211,7 +210,6 @@ export function ProjectDetail({
 
   function saveProject() {
     setError(null);
-    setMessage(null);
     startTransition(async () => {
       const payload = {
         projectName,
@@ -246,7 +244,7 @@ export function ProjectDetail({
         return;
       }
       helpers.replaceRow(data.row);
-      setMessage(isNewProject ? "프로젝트가 등록되었습니다." : "프로젝트가 저장되었습니다.");
+      onClose();
     });
   }
 
@@ -255,7 +253,6 @@ export function ProjectDetail({
       return;
     }
     setError(null);
-    setMessage(null);
     startTransition(async () => {
       const response = await fetch(`/api/projects?id=${encodeURIComponent(String(row.id))}`, {
         method: "DELETE",
@@ -495,12 +492,6 @@ export function ProjectDetail({
           </div>
         </div>
 
-        {message ? (
-          <Alert className="border-[#bfd2f5] bg-[#eef4ff] text-[#1f4f9f]">
-            <AlertTitle className="text-xs">완료</AlertTitle>
-            <AlertDescription className="text-xs">{message}</AlertDescription>
-          </Alert>
-        ) : null}
         {error ? (
           <Alert variant="destructive">
             <AlertTitle className="text-xs">확인 필요</AlertTitle>

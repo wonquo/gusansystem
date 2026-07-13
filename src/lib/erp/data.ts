@@ -829,7 +829,6 @@ export async function saveProjectScheduleImport(input: {
       errorCount: input.errors.length,
       resultSummary: {
         rows: input.rows.length,
-        schedules: input.rows.reduce((total, row) => total + row.items.length, 0),
         errors: input.errors.length,
       },
       errorMessage: input.errors[0]?.message ?? null,
@@ -838,12 +837,14 @@ export async function saveProjectScheduleImport(input: {
     .returning();
 
   for (const row of input.rows) {
-    const existing = await db.query.projectSchedules.findFirst({
-      where: and(
-        eq(projectSchedules.sourceSheetName, row.sheetName),
-        eq(projectSchedules.sourceRowNumber, row.sourceRowNumber),
-      ),
-    });
+    const existing = row.projectCode
+      ? await db.query.projectSchedules.findFirst({
+          where: and(
+            eq(projectSchedules.projectType, row.projectType),
+            eq(projectSchedules.projectCode, row.projectCode),
+          ),
+        })
+      : null;
     const values = projectScheduleImportValues(row, batch.id);
     const [saved] = existing
       ? await db
@@ -852,24 +853,6 @@ export async function saveProjectScheduleImport(input: {
           .where(eq(projectSchedules.id, existing.id))
           .returning()
       : await db.insert(projectSchedules).values(values).returning();
-
-    await db.delete(projectScheduleItems).where(eq(projectScheduleItems.projectScheduleId, saved.id));
-    if (row.items.length) {
-      await db.insert(projectScheduleItems).values(
-        row.items.map((item) => ({
-          projectScheduleId: saved.id,
-          scheduleDate: item.scheduleDate,
-          scheduleText: item.scheduleText,
-          taskDescription: item.taskDescription,
-          managerName: item.managerName,
-          status: item.status,
-          memo: item.memo,
-          sourceLineNumber: item.sourceLineNumber,
-          sortOrder: item.sortOrder,
-          rawData: item.rawData,
-        })),
-      );
-    }
 
     await db.insert(importRows).values({
       batchId: batch.id,
@@ -895,6 +878,64 @@ export async function saveProjectScheduleImport(input: {
   }
 
   return batch;
+}
+
+export async function prepareProjectScheduleImportRows(rows: ProjectScheduleImportRow[]) {
+  const existingRows = hasDatabaseUrl()
+    ? await getDb()
+        .select({
+          projectCode: projectSchedules.projectCode,
+        })
+        .from(projectSchedules)
+    : [];
+  const usedCodes = new Set<string>();
+
+  existingRows.forEach((row) => {
+    const code = row.projectCode?.trim();
+    if (!code) return;
+    usedCodes.add(code.toLowerCase());
+  });
+  rows.forEach((row) => {
+    const code = row.projectCode?.trim();
+    if (code) usedCodes.add(code.toLowerCase());
+  });
+
+  const nextSequenceByPrefix = new Map<string, number>();
+  return rows.map((row) => {
+    const enteredCode = row.projectCode?.trim();
+    if (enteredCode) {
+      return { ...row, projectCode: enteredCode, projectCodeGenerated: false };
+    }
+
+    const prefix = projectScheduleCodePrefix(row.projectType);
+    let sequence = nextSequenceByPrefix.get(prefix) ?? findNextProjectScheduleSequence(prefix, usedCodes);
+    let code = `${prefix}${String(sequence).padStart(3, "0")}`;
+    while (usedCodes.has(code.toLowerCase())) {
+      sequence += 1;
+      code = `${prefix}${String(sequence).padStart(3, "0")}`;
+    }
+    usedCodes.add(code.toLowerCase());
+    nextSequenceByPrefix.set(prefix, sequence + 1);
+    return { ...row, projectCode: code, projectCodeGenerated: true };
+  });
+}
+
+function projectScheduleCodePrefix(projectType: ProjectScheduleType) {
+  const year = String(new Date().getFullYear()).slice(-2);
+  return `${projectType === "main" ? "GSTM" : "GSTS"}${year}_`;
+}
+
+function findNextProjectScheduleSequence(prefix: string, usedCodes: Set<string>) {
+  const normalizedPrefix = prefix.toLowerCase();
+  let maxSequence = 0;
+  usedCodes.forEach((code) => {
+    if (!code.startsWith(normalizedPrefix)) return;
+    const sequence = Number(code.slice(normalizedPrefix.length));
+    if (Number.isInteger(sequence) && sequence > maxSequence) {
+      maxSequence = sequence;
+    }
+  });
+  return maxSequence + 1;
 }
 
 export async function saveUnsupportedImport(input: {
@@ -1164,7 +1205,7 @@ function projectScheduleImportValues(row: ProjectScheduleImportRow, importBatchI
     expenseMemo: row.expenseMemo,
     expenseAmount: row.expenseAmount,
     memo: row.memo,
-    sourceSheetName: row.sheetName,
+    sourceSheetName: `${row.sheetName}#${importBatchId}`,
     sourceRowNumber: row.sourceRowNumber,
     sourceSection: row.sourceSection,
     rawData: row.rawData,

@@ -75,7 +75,6 @@ export function MemoGrid({
   const [draft, setDraft] = useState<MemoDraft>(EMPTY_DRAFT);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const columnDefs = useMemo<ColDef<MemoRow>[]>(
@@ -173,7 +172,6 @@ export function MemoGrid({
           }
           setRows(body.rows ?? []);
           setSelectedRow(body.rows?.[0] ?? null);
-          setNotice(null);
         } catch (fetchError) {
           setError(fetchError instanceof Error ? fetchError.message : "메모 조회에 실패했습니다.");
         }
@@ -195,13 +193,11 @@ export function MemoGrid({
       attachments: row.attachments,
     });
     setIsDialogOpen(true);
-    setNotice(null);
   }
 
   function openNewMemo() {
     setDraft(EMPTY_DRAFT);
     setIsDialogOpen(true);
-    setNotice(null);
   }
 
   function saveMemo() {
@@ -241,7 +237,6 @@ export function MemoGrid({
           content: memo.content,
           attachments: memo.attachments,
         });
-        setNotice("메모를 저장했습니다.");
         setIsDialogOpen(false);
       } catch (saveError) {
         setError(saveError instanceof Error ? saveError.message : "메모 저장에 실패했습니다.");
@@ -251,7 +246,7 @@ export function MemoGrid({
 
   function deleteCurrentMemo(row = selectedRow) {
     if (!row) {
-      setNotice("삭제할 메모를 선택해 주세요.");
+      setError("삭제할 메모를 선택해 주세요.");
       return;
     }
     if (!canDelete) {
@@ -272,7 +267,6 @@ export function MemoGrid({
         }
         setRows((current) => current.filter((item) => item.id !== row.id));
         setSelectedRow(null);
-        setNotice("메모를 삭제했습니다.");
         setIsDialogOpen(false);
       } catch (deleteError) {
         setError(deleteError instanceof Error ? deleteError.message : "메모 삭제에 실패했습니다.");
@@ -369,13 +363,6 @@ export function MemoGrid({
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       ) : null}
-      {notice ? (
-        <Alert className="border-[#bfd2f5] bg-[#eef4ff] text-[#1f4f9f]">
-          <AlertTitle>처리 완료</AlertTitle>
-          <AlertDescription>{notice}</AlertDescription>
-        </Alert>
-      ) : null}
-
       <div className="relative min-h-0 flex-1 overflow-y-auto md:hidden">
         {isPending ? (
           <div className="sticky inset-x-0 top-0 z-10 h-0.5 overflow-hidden bg-[#dbe7fb]">

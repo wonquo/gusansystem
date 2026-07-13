@@ -15,6 +15,7 @@ export default async function ProjectsPage() {
       uploadType="projects"
       createEnabled={canCreateProjects}
       detailType="project"
+      showRowNumber={false}
       columns={[
         { field: "orderedOn", headerName: "일자", type: "date", width: 120 },
         { field: "projectName", headerName: "프로젝트명", width: 360 },

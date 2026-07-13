@@ -162,7 +162,6 @@ export function WorkDiaryGrid({
   const [selectedDate, setSelectedDate] = useState(() => getInitialSelectedDate(initialMonth, todayText));
   const [selectedUserId, setSelectedUserId] = useState(currentUser.id);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   const [isDestinationDialogOpen, setIsDestinationDialogOpen] = useState(false);
   const [isWorkTypeDialogOpen, setIsWorkTypeDialogOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -328,7 +327,6 @@ export function WorkDiaryGrid({
           const nextRows = toGridRows(body.rows ?? [], workTypes);
           pendingSelectionDateRef.current = nextSelectionDate;
           setRows(nextRows);
-          setNotice(null);
         } catch (fetchError) {
           setError(fetchError instanceof Error ? fetchError.message : "업무일지 조회에 실패했습니다.");
         }
@@ -389,7 +387,6 @@ export function WorkDiaryGrid({
         if (!response.ok) {
           throw new Error(body.error ?? "업무일지 저장에 실패했습니다.");
         }
-        setNotice(null);
         reloadRows(month, selectedUserId, row.workDate);
       } catch (saveError) {
         setError(saveError instanceof Error ? saveError.message : "업무일지 저장에 실패했습니다.");
@@ -425,7 +422,6 @@ export function WorkDiaryGrid({
         if (!response.ok) {
           throw new Error(body.error ?? "업무일지 저장에 실패했습니다.");
         }
-        setNotice(null);
         reloadRows(month, selectedUserId, changedRows[0]?.workDate ?? null);
       } catch (saveError) {
         setRows(previousRows);
@@ -445,7 +441,7 @@ export function WorkDiaryGrid({
       .map(toSavePayload);
 
     if (created.length === 0 && updated.length === 0) {
-      setNotice("저장할 업무일지가 없습니다.");
+      setError("저장할 업무일지가 없습니다.");
       return;
     }
 
@@ -463,7 +459,6 @@ export function WorkDiaryGrid({
         if (!response.ok) {
           throw new Error(body.error ?? "업무일지 저장에 실패했습니다.");
         }
-        setNotice("업무일지를 저장했습니다.");
         reloadRows(month, selectedUserId, focusedWorkDate);
       } catch (saveError) {
         setError(saveError instanceof Error ? saveError.message : "업무일지 저장에 실패했습니다.");
@@ -848,13 +843,6 @@ export function WorkDiaryGrid({
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       ) : null}
-      {notice ? (
-        <Alert className="border-[#bfd2f5] bg-[#eef4ff] text-[#1f4f9f]">
-          <AlertTitle>처리 완료</AlertTitle>
-          <AlertDescription>{notice}</AlertDescription>
-        </Alert>
-      ) : null}
-
       <div className="relative min-h-0 flex-1 overflow-hidden rounded-lg border border-[#d8e0ea] bg-white shadow-[0_10px_34px_rgba(15,28,48,0.06)] max-md:hidden">
         {isPending ? (
           <div className="absolute inset-x-0 top-0 z-10 h-0.5 overflow-hidden bg-[#dbe7fb]">

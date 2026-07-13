@@ -21,7 +21,6 @@ type PermissionRow = {
 type PermissionField = (typeof PERMISSION_ACTIONS)[number]["field"];
 
 type PermissionMessage = {
-  type: "success" | "error";
   text: string;
 };
 
@@ -194,10 +193,8 @@ export function PermissionManager({
 
       setSavedRows((current) => mergeRoleRows(current, selectedRole, nextRows));
       setRows((current) => mergeRoleRows(current, selectedRole, nextRows));
-      setMessage({ type: "success", text: "선택한 권한의 메뉴 설정을 반영했습니다." });
     } catch (error) {
       setMessage({
-        type: "error",
         text: error instanceof Error ? error.message : "권한 저장에 실패했습니다.",
       });
     } finally {
@@ -216,12 +213,7 @@ export function PermissionManager({
         </div>
         <div className="flex items-center gap-2">
           {message ? (
-            <span
-              className={cn(
-                "text-sm font-medium",
-                message.type === "success" ? "text-[#087443]" : "text-[#b42318]",
-              )}
-            >
+            <span className="text-sm font-medium text-[#b42318]">
               {message.text}
             </span>
           ) : null}

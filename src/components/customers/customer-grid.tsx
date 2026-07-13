@@ -32,7 +32,6 @@ import {
   CalendarClock,
   ChevronLeft,
   ChevronRight,
-  CheckCircle2,
   Download,
   Eye,
   FilePlus2,
@@ -119,7 +118,6 @@ const RESIZABLE_COLUMN_IDS = [
 const resizableColumnIdSet = new Set<string>(RESIZABLE_COLUMN_IDS);
 
 type ImportNotice = {
-  type: "success" | "error";
   message: string;
 };
 
@@ -458,7 +456,6 @@ export function CustomerGrid({
       .catch((error) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
         setImportNotice({
-          type: "error",
           message: error instanceof Error ? error.message : "고객 조회에 실패했습니다.",
         });
       })
@@ -513,7 +510,6 @@ export function CustomerGrid({
       );
     } catch (error) {
       setDetailNotice({
-        type: "error",
         message: error instanceof Error ? error.message : "연락 이력 조회에 실패했습니다.",
       });
     } finally {
@@ -582,7 +578,6 @@ export function CustomerGrid({
       } catch (error) {
         if (ignore) return;
         setImportNotice({
-          type: "error",
           message: error instanceof Error ? error.message : "고객 상세 정보를 불러오지 못했습니다.",
         });
       }
@@ -1008,7 +1003,6 @@ export function CustomerGrid({
       resetGridRowHeights();
     } catch (error) {
       setDetailNotice({
-        type: "error",
         message: error instanceof Error
           ? error.message
           : isCreating
@@ -1021,22 +1015,18 @@ export function CustomerGrid({
 
     setIsSavingDetail(false);
     if (isCreating && contactActivities.length === 0) {
-      setDetailNotice({ type: "success", message: "고객을 추가했습니다." });
       return;
     }
 
-    await saveContactActivities(savedCustomer, isCreating ? "고객을 추가했습니다." : "상세 정보를 저장했습니다.");
+    await saveContactActivities(savedCustomer);
   }
 
-  async function saveContactActivities(
-    customer = detailCustomer,
-    successMessage = "연락 이력을 저장했습니다.",
-  ) {
+  async function saveContactActivities(customer = detailCustomer) {
     if (!customer) return false;
 
     const invalidRow = contactActivities.find((activity) => !activity.occurredAt);
     if (invalidRow) {
-      setDetailNotice({ type: "error", message: "연락일자를 입력하지 않은 행이 있습니다." });
+      setDetailNotice({ message: "연락일자를 입력하지 않은 행이 있습니다." });
       return false;
     }
 
@@ -1081,11 +1071,9 @@ export function CustomerGrid({
       setDetailCustomer(nextCustomer);
       setDetailDraft(createDetailCustomerDraft(nextCustomer));
       updateGridRow(nextCustomer);
-      setDetailNotice({ type: "success", message: successMessage });
       return true;
     } catch (error) {
       setDetailNotice({
-        type: "error",
         message: error instanceof Error ? error.message : "연락 이력 저장에 실패했습니다.",
       });
       return false;
@@ -1128,7 +1116,6 @@ export function CustomerGrid({
         resetGridRowHeights();
       }
       setImportNotice({
-        type: "error",
         message: "고객 정보를 저장하지 못했습니다. 변경 전 값으로 되돌렸습니다.",
       });
     } finally {
@@ -1193,10 +1180,6 @@ export function CustomerGrid({
 
     setIsSmsDialogOpen(false);
     setSmsMessage("");
-    setImportNotice({
-      type: "success",
-      message: `${smsRecipients.length.toLocaleString()}건 문자 전송 화면을 확인했습니다. 실제 발송 연동은 아직 연결하지 않았습니다.`,
-    });
   }
 
   function exportCsv() {
@@ -1261,7 +1244,6 @@ export function CustomerGrid({
       URL.revokeObjectURL(url);
     } catch (error) {
       setImportNotice({
-        type: "error",
         message: error instanceof Error ? error.message : "엑셀 템플릿 다운로드에 실패했습니다.",
       });
     } finally {
@@ -1295,18 +1277,8 @@ export function CustomerGrid({
       setPageInfo(result.pageInfo);
       setFacets(result.facets);
       resetFilters();
-      const importDetails = [
-        `신규 ${(result.inserted ?? result.imported).toLocaleString()}건`,
-        result.updated !== undefined ? `업데이트 ${result.updated.toLocaleString()}건` : null,
-        result.mergedDuplicates ? `파일 내 중복 ${result.mergedDuplicates.toLocaleString()}건 병합` : null,
-      ].filter(Boolean);
-      setImportNotice({
-        type: "success",
-        message: `${result.fileName}에서 ${result.imported.toLocaleString()}건을 업로드했습니다. (${importDetails.join(", ")})`,
-      });
     } catch (error) {
       setImportNotice({
-        type: "error",
         message: error instanceof Error ? error.message : "엑셀 업로드에 실패했습니다.",
       });
     } finally {
@@ -1401,14 +1373,8 @@ export function CustomerGrid({
           </tbody>
         </table>
         {importNotice && (
-          <div
-            className={
-              importNotice.type === "success"
-                ? "flex items-center gap-2 border-t border-[#d8e0ea] bg-[#eef4ff] px-3 py-2 text-sm text-[#1f4f9f]"
-                : "flex items-center gap-2 border-t border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-            }
-          >
-            {importNotice.type === "success" ? <CheckCircle2 className="size-4" /> : <AlertCircle className="size-4" />}
+          <div className="flex items-center gap-2 border-t border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            <AlertCircle className="size-4" />
             <span>{importNotice.message}</span>
           </div>
         )}
@@ -1588,18 +1554,8 @@ export function CustomerGrid({
             {detailCustomer && detailDraft ? (
               <div className="grid gap-4 p-5">
                 {detailNotice ? (
-                  <div
-                    className={
-                      detailNotice.type === "success"
-                        ? "flex items-center gap-2 rounded-md border border-[#bfd2f5] bg-[#eef4ff] px-3 py-2 text-sm text-[#1f4f9f]"
-                        : "flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-                    }
-                  >
-                    {detailNotice.type === "success" ? (
-                      <CheckCircle2 className="size-4" />
-                    ) : (
-                      <AlertCircle className="size-4" />
-                    )}
+                  <div className="flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                    <AlertCircle className="size-4" />
                     <span>{detailNotice.message}</span>
                   </div>
                 ) : null}
