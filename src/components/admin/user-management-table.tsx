@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useState, type ReactNode } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { AgGridReact } from "ag-grid-react";
 import {
@@ -58,6 +58,7 @@ type EditUserForm = {
   email: string;
   name: string;
   profileImageUrl: string;
+  profileImageDisplayUrl: string;
   password: string;
   role: UserRole;
   status: UserStatus;
@@ -84,6 +85,9 @@ const initialFilters: UserFilters = {
   role: "all",
   status: "all",
 };
+
+const MAX_PROFILE_IMAGE_BYTES = 2 * 1024 * 1024;
+const PROFILE_IMAGE_ACCEPT = "image/jpeg,image/png,image/webp,image/gif";
 
 const roleLabels: Record<UserRole, string> = {
   admin: "관리자",
@@ -125,6 +129,9 @@ export function UserManagementTable({
   const [appliedFilters, setAppliedFilters] = useState<UserFilters>(initialFilters);
   const [createForm, setCreateForm] = useState<CreateUserForm>(initialCreateForm);
   const [editForm, setEditForm] = useState<EditUserForm | null>(null);
+  const [editProfileImageFile, setEditProfileImageFile] = useState<File | null>(null);
+  const [editProfileImagePreviewUrl, setEditProfileImagePreviewUrl] = useState<string | null>(null);
+  const [shouldRemoveEditProfileImage, setShouldRemoveEditProfileImage] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
@@ -133,6 +140,16 @@ export function UserManagementTable({
   const [isCreating, setIsCreating] = useState(false);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [isDeletingId, setIsDeletingId] = useState<string | null>(null);
+  const editProfileImageObjectUrlRef = useRef<string | null>(null);
+
+  useEffect(
+    () => () => {
+      if (editProfileImageObjectUrlRef.current) {
+        URL.revokeObjectURL(editProfileImageObjectUrlRef.current);
+      }
+    },
+    [],
+  );
 
   const filteredUsers = useMemo(() => {
     const query = appliedFilters.query.trim().toLowerCase();
@@ -253,12 +270,75 @@ export function UserManagementTable({
       employeeCode: user.employeeCode ?? "",
       email: user.email,
       name: user.name,
-      profileImageUrl: user.profileImageUrl ?? "",
+      profileImageUrl: isStoredProfileImageUrl(user.profileImageUrl) ? "" : (user.profileImageUrl ?? ""),
+      profileImageDisplayUrl: user.profileImageUrl ?? "",
       password: "",
       role: user.role,
       status: user.status,
     });
+    resetEditProfileImageChange();
     setEditError(null);
+  }
+
+  function resetEditProfileImageChange() {
+    setEditProfileImageFile(null);
+    setShouldRemoveEditProfileImage(false);
+    clearEditProfileImagePreview();
+  }
+
+  function clearEditProfileImagePreview() {
+    if (editProfileImageObjectUrlRef.current) {
+      URL.revokeObjectURL(editProfileImageObjectUrlRef.current);
+      editProfileImageObjectUrlRef.current = null;
+    }
+    setEditProfileImagePreviewUrl(null);
+  }
+
+  function closeEditDialog() {
+    resetEditProfileImageChange();
+    setEditForm(null);
+  }
+
+  function selectEditProfileImage(file: File | null) {
+    if (!file) {
+      return;
+    }
+    if (!PROFILE_IMAGE_ACCEPT.split(",").includes(file.type)) {
+      resetEditProfileImageChange();
+      setEditError("JPG, PNG, WebP, GIF 형식의 이미지만 올릴 수 있습니다.");
+      return;
+    }
+    if (file.size === 0 || file.size > MAX_PROFILE_IMAGE_BYTES) {
+      resetEditProfileImageChange();
+      setEditError("프로필 사진은 2MB 이하로 올려 주세요.");
+      return;
+    }
+
+    clearEditProfileImagePreview();
+    const previewUrl = URL.createObjectURL(file);
+    editProfileImageObjectUrlRef.current = previewUrl;
+    setEditProfileImagePreviewUrl(previewUrl);
+    setEditProfileImageFile(file);
+    setShouldRemoveEditProfileImage(false);
+    setEditError(null);
+  }
+
+  function removeEditProfileImage() {
+    setEditProfileImageFile(null);
+    clearEditProfileImagePreview();
+    setShouldRemoveEditProfileImage(true);
+    setEditError(null);
+  }
+
+  function changeEditProfileImageUrl(value: string) {
+    setEditForm((current) =>
+      current
+        ? { ...current, profileImageUrl: value, profileImageDisplayUrl: value }
+        : current,
+    );
+    setEditProfileImageFile(null);
+    clearEditProfileImagePreview();
+    setShouldRemoveEditProfileImage(false);
   }
 
   async function createUser(event: FormEvent<HTMLFormElement>) {
@@ -298,6 +378,10 @@ export function UserManagementTable({
     setActionError(null);
     setIsSavingEdit(true);
 
+    const shouldSendProfileImageUrl =
+      !editProfileImageFile &&
+      !shouldRemoveEditProfileImage &&
+      !isStoredProfileImageUrl(editForm.profileImageDisplayUrl);
     const response = await fetch(`/api/users/${editForm.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -306,7 +390,7 @@ export function UserManagementTable({
         employeeCode: editForm.employeeCode,
         email: editForm.email,
         name: editForm.name,
-        profileImageUrl: editForm.profileImageUrl,
+        ...(shouldSendProfileImageUrl ? { profileImageUrl: editForm.profileImageUrl } : {}),
         ...(editForm.password.trim() ? { password: editForm.password } : {}),
         role: editForm.role,
         status: editForm.status,
@@ -314,15 +398,43 @@ export function UserManagementTable({
     });
     const data = await response.json();
 
-    setIsSavingEdit(false);
-
     if (!response.ok) {
+      setIsSavingEdit(false);
       setEditError(data.error ?? "계정을 수정하지 못했습니다.");
       return;
     }
 
-    mergeUser(editForm.id, data.user);
-    setEditForm(null);
+    let nextUser = data.user as AppUserRow;
+    if (editProfileImageFile) {
+      const uploadData = new FormData();
+      uploadData.set("profileImage", editProfileImageFile);
+      const imageResponse = await fetch(`/api/users/${encodeURIComponent(editForm.id)}/profile-image`, {
+        method: "POST",
+        body: uploadData,
+      });
+      const imageData = await imageResponse.json();
+      if (!imageResponse.ok) {
+        setIsSavingEdit(false);
+        setEditError(imageData.error ?? "프로필 사진을 저장하지 못했습니다.");
+        return;
+      }
+      nextUser = imageData.user;
+    } else if (shouldRemoveEditProfileImage && editForm.profileImageDisplayUrl) {
+      const imageResponse = await fetch(`/api/users/${encodeURIComponent(editForm.id)}/profile-image`, {
+        method: "DELETE",
+      });
+      const imageData = await imageResponse.json();
+      if (!imageResponse.ok) {
+        setIsSavingEdit(false);
+        setEditError(imageData.error ?? "프로필 사진을 삭제하지 못했습니다.");
+        return;
+      }
+      nextUser = imageData.user;
+    }
+
+    setIsSavingEdit(false);
+    mergeUser(editForm.id, nextUser);
+    closeEditDialog();
     router.refresh();
   }
 
@@ -358,7 +470,7 @@ export function UserManagementTable({
     setUsers((current) => current.filter((currentUser) => currentUser.id !== user.id));
     setSelectedUserId((current) => (current === user.id ? null : current));
     if (editForm?.id === user.id) {
-      setEditForm(null);
+      closeEditDialog();
     }
     router.refresh();
   }
@@ -521,7 +633,7 @@ export function UserManagementTable({
         </div>
       </section>
 
-      <Dialog open={Boolean(editForm)} onOpenChange={(open) => !open && setEditForm(null)}>
+      <Dialog open={Boolean(editForm)} onOpenChange={(open) => !open && closeEditDialog()}>
         <DialogContent className="max-h-[86vh] overflow-y-auto sm:max-w-md">
           {editForm ? (
             <UserForm
@@ -530,9 +642,15 @@ export function UserManagementTable({
               error={editError}
               isSaving={isSavingEdit}
               isDeleting={isDeletingId === editForm.id}
+              profileImageFile={editProfileImageFile}
+              profileImagePreviewUrl={editProfileImagePreviewUrl}
+              shouldRemoveProfileImage={shouldRemoveEditProfileImage}
               onSubmit={saveEditedUser}
-              onCancel={() => setEditForm(null)}
+              onCancel={closeEditDialog}
               onDelete={() => deleteUser(editForm)}
+              onProfileImageFileChange={selectEditProfileImage}
+              onProfileImageRemove={removeEditProfileImage}
+              onProfileImageUrlChange={changeEditProfileImageUrl}
               onChange={(next) =>
                 setEditForm((current) => {
                   if (!current) {
@@ -555,9 +673,15 @@ function UserForm<TForm extends CreateUserForm | EditUserForm>({
   error,
   isSaving,
   isDeleting = false,
+  profileImageFile = null,
+  profileImagePreviewUrl = null,
+  shouldRemoveProfileImage = false,
   onSubmit,
   onCancel,
   onDelete,
+  onProfileImageFileChange,
+  onProfileImageRemove,
+  onProfileImageUrlChange,
   onChange,
 }: {
   mode: "create" | "edit";
@@ -565,9 +689,15 @@ function UserForm<TForm extends CreateUserForm | EditUserForm>({
   error: string | null;
   isSaving: boolean;
   isDeleting?: boolean;
+  profileImageFile?: File | null;
+  profileImagePreviewUrl?: string | null;
+  shouldRemoveProfileImage?: boolean;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onCancel: () => void;
   onDelete?: () => void;
+  onProfileImageFileChange?: (file: File | null) => void;
+  onProfileImageRemove?: () => void;
+  onProfileImageUrlChange?: (value: string) => void;
   onChange: (form: TForm | ((form: TForm) => TForm)) => void;
 }) {
   return (
@@ -641,7 +771,12 @@ function UserForm<TForm extends CreateUserForm | EditUserForm>({
               <UserAvatar
                 user={{
                   ...(form as EditUserForm),
-                  profileImageUrl: (form as EditUserForm).profileImageUrl || null,
+                  profileImageUrl:
+                    profileImagePreviewUrl ??
+                    (shouldRemoveProfileImage
+                      ? null
+                      : (form as EditUserForm).profileImageDisplayUrl || null),
+                  updatedAt: profileImagePreviewUrl ? null : undefined,
                 }}
                 className="size-14 text-base"
               />
@@ -652,15 +787,29 @@ function UserForm<TForm extends CreateUserForm | EditUserForm>({
                 <p className="truncate text-xs text-[#69758a]">{form.email || "이메일 없음"}</p>
               </div>
             </div>
-            <FormField label="프로필 사진 URL" htmlFor="edit-profile-image-url">
+            <FormField label="프로필 사진" htmlFor="edit-profile-image-file">
+              <Input
+                id="edit-profile-image-file"
+                type="file"
+                accept={PROFILE_IMAGE_ACCEPT}
+                onChange={(event) => onProfileImageFileChange?.(event.target.files?.[0] ?? null)}
+              />
+              <p className="text-xs text-[#69758a]">JPG, PNG, WebP, GIF · 최대 2MB</p>
+              {((form as EditUserForm).profileImageDisplayUrl || profileImageFile) &&
+              !shouldRemoveProfileImage ? (
+                <Button type="button" variant="outline" size="sm" onClick={onProfileImageRemove}>
+                  기본 이미지로 변경
+                </Button>
+              ) : null}
+            </FormField>
+            <FormField label="외부 이미지 URL (선택)" htmlFor="edit-profile-image-url">
               <Input
                 id="edit-profile-image-url"
                 type="url"
                 value={(form as EditUserForm).profileImageUrl}
-                onChange={(event) =>
-                  onChange((current) => ({ ...current, profileImageUrl: event.target.value }))
-                }
+                onChange={(event) => onProfileImageUrlChange?.(event.target.value)}
                 placeholder="https://example.com/profile.jpg"
+                disabled={Boolean(profileImageFile)}
               />
             </FormField>
             <FormField label="새 비밀번호" htmlFor="edit-password">
@@ -763,6 +912,10 @@ function UserAvatar({
       {user.name.slice(0, 1)}
     </span>
   );
+}
+
+function isStoredProfileImageUrl(value: string | null | undefined) {
+  return Boolean(value?.startsWith("/api/users/") && value.endsWith("/profile-image"));
 }
 
 function FormField({

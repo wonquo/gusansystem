@@ -155,6 +155,13 @@
       "when": 1782613436608,
       "tag": "0021_faulty_prowler",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1784868057696,
+      "tag": "0022_perpetual_jubilee",
+      "breakpoints": true
     }
   ]
 }

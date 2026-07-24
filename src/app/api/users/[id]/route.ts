@@ -49,10 +49,15 @@ export async function PATCH(
     const requestedId = id.trim();
     const body = userUpdateSchema.parse(await request.json());
     const { employeeCode: rawEmployeeCode, password, ...userBody } = body;
+    const hasProfileImageUrl = Object.hasOwn(userBody, "profileImageUrl");
     const patch = {
       ...userBody,
-      ...(Object.hasOwn(userBody, "profileImageUrl")
-        ? { profileImageUrl: normalizeProfileImageUrl(userBody.profileImageUrl) }
+      ...(hasProfileImageUrl
+        ? {
+            profileImageUrl: normalizeProfileImageUrl(userBody.profileImageUrl),
+            profileImageData: null,
+            profileImageContentType: null,
+          }
         : {}),
       ...(password ? { passwordHash: hashPassword(password) } : {}),
     };
@@ -62,7 +67,7 @@ export async function PATCH(
     if (!hasDatabaseUrl()) {
       const publicPatch = {
         ...userBody,
-        ...(Object.hasOwn(userBody, "profileImageUrl")
+        ...(hasProfileImageUrl
           ? { profileImageUrl: normalizeProfileImageUrl(userBody.profileImageUrl) }
           : {}),
       };

@@ -151,7 +151,9 @@ export function serializeUser(user: typeof appUsers.$inferSelect): AppUserRow {
     loginId: user.loginId,
     email: user.email,
     name: user.name,
-    profileImageUrl: user.profileImageUrl,
+    profileImageUrl: user.profileImageData
+      ? `/api/users/${user.id}/profile-image`
+      : user.profileImageUrl,
     role: user.role,
     status: user.status,
     lastLoginAt: user.lastLoginAt?.toISOString() ?? null,

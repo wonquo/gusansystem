@@ -3,12 +3,13 @@ import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 import { requireAppUser } from "@/lib/auth";
 import { listBoardPosts } from "@/lib/board";
 import { listCalendarEvents } from "@/lib/calendar";
+import { getKoreanWeekday, isKoreanHoliday, KOREAN_DAY_LABELS } from "@/lib/korean-calendar";
 import { listWorkDiaryRows } from "@/lib/work-diaries";
 import { getWhiteboardState } from "@/lib/whiteboard";
 import { WhiteBoardCard } from "@/components/dashboard/white-board-card";
 import type { BoardPostRow, CalendarEventRow, WorkDiaryRow } from "@/lib/types";
 
-const DAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
+const DAY_LABELS = KOREAN_DAY_LABELS;
 
 const EVENT_COLORS: Record<string, string> = {
   휴가: "bg-[#21ad73]",
@@ -117,7 +118,14 @@ export default async function DashboardPage() {
 
           <div className="mt-4 grid grid-cols-7 text-center text-xs font-bold text-[#545f70]">
             {DAY_LABELS.map((day) => (
-              <div key={day} className="py-2">
+              <div
+                key={day}
+                className={[
+                  "py-2",
+                  day === "일" ? "text-[#e2576a]" : "",
+                  day === "토" ? "text-[#2f70dc]" : "",
+                ].join(" ")}
+              >
                 {day}
               </div>
             ))}
@@ -309,11 +317,13 @@ function CalendarDayCell({
   events: CalendarEventRow[];
 }) {
   const isToday = cell.value === today;
-  const day = new Date(`${cell.value}T00:00:00+09:00`).getDay();
-  const isSunday = day === 0;
+  const weekday = getKoreanWeekday(cell.value);
+  const isSunday = weekday === "일";
+  const isSaturday = weekday === "토";
+  const isHoliday = isKoreanHoliday(cell.value);
   const hasEvents = events.length > 0;
   const tooltipPosition =
-    day === 0 ? "left-0" : day === 6 ? "right-0" : "left-1/2 -translate-x-1/2";
+    isSunday ? "left-0" : isSaturday ? "right-0" : "left-1/2 -translate-x-1/2";
 
   return (
     <div
@@ -330,7 +340,8 @@ function CalendarDayCell({
           isToday ? "bg-[#1f6fff] text-white shadow-[0_8px_18px_rgba(31,111,255,0.28)]" : "",
           !isToday && cell.isCurrentMonth ? "text-[#202838]" : "",
           !isToday && !cell.isCurrentMonth ? "text-[#c6ccd5]" : "",
-          !isToday && isSunday && cell.isCurrentMonth ? "text-[#e2576a]" : "",
+          !isToday && (isSunday || isHoliday) && cell.isCurrentMonth ? "text-[#e2576a]" : "",
+          !isToday && isSaturday && cell.isCurrentMonth ? "text-[#2f70dc]" : "",
         ].join(" ")}
       >
         {Number(cell.value.slice(-2))}
@@ -352,7 +363,7 @@ function CalendarDayCell({
             <p className="truncate text-xs font-extrabold text-[#152033]">
               {formatTooltipDate(cell.value)} · 일정 {events.length}건
             </p>
-            <span className="shrink-0 text-[10px] font-bold text-[#64748b]">{DAY_LABELS[day]}</span>
+            <span className="shrink-0 text-[10px] font-bold text-[#64748b]">{weekday}</span>
           </div>
           <div className="mt-2.5 grid gap-2">
             {events.slice(0, 4).map((event) => {
@@ -495,8 +506,8 @@ function listDatesInMonth(month: string) {
 }
 
 function isBusinessDay(value: string) {
-  const day = new Date(`${value}T00:00:00+09:00`).getDay();
-  return day !== 0 && day !== 6;
+  const weekday = getKoreanWeekday(value);
+  return weekday !== "일" && weekday !== "토";
 }
 
 function isWorkDiaryWritten(row: WorkDiaryRow) {
@@ -557,8 +568,7 @@ function formatMonthDay(value: string) {
 }
 
 function formatShortDateWithDay(value: string) {
-  const day = new Date(`${value}T00:00:00+09:00`).getDay();
-  return `${formatMonthDay(value)}(${DAY_LABELS[day]})`;
+  return `${formatMonthDay(value)}(${getKoreanWeekday(value)})`;
 }
 
 function formatTooltipDate(value: string) {

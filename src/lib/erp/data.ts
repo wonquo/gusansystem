@@ -1114,7 +1114,7 @@ function normalizeProjectSchedule(data: Record<string, unknown>) {
     projectType,
     projectCode: textValue(data.projectCode),
     projectName: textValue(data.projectName) || "미지정 프로젝트",
-    taskDescription: textValue(data.taskDescription),
+    taskDescription: multilineTextValue(data.taskDescription),
     destinationName: textValue(data.destinationName),
     controlManagerName: textValue(data.controlManagerName),
     facilityManagerName: textValue(data.facilityManagerName),
@@ -1123,7 +1123,7 @@ function normalizeProjectSchedule(data: Record<string, unknown>) {
     status: textValue(data.status),
     expenseMemo: textValue(data.expenseMemo),
     expenseAmount: numberValue(data.expenseAmount),
-    memo: textValue(data.memo),
+    memo: multilineTextValue(data.memo),
     sourceSheetName: textValue(data.sourceSheetName),
     sourceRowNumber: numberValue(data.sourceRowNumber) || null,
     sourceSection: textValue(data.sourceSection),
@@ -1416,6 +1416,14 @@ function textValue(value: unknown) {
     return null;
   }
   const text = String(value).replace(/\s+/g, " ").trim();
+  return text || null;
+}
+
+function multilineTextValue(value: unknown) {
+  if (value == null) {
+    return null;
+  }
+  const text = String(value).replace(/\r\n?/g, "\n").trim();
   return text || null;
 }
 

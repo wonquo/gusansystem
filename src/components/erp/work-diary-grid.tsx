@@ -72,6 +72,7 @@ import {
   type WorkDiaryRow,
   type WorkDiaryTypeRow,
 } from "@/lib/types";
+import { getKoreanWeekday, isKoreanHoliday } from "@/lib/korean-calendar";
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -113,29 +114,6 @@ const WORK_TYPE_COLORS = [
   { label: "주황", value: "#ea580c" },
   { label: "청록", value: "#0f766e" },
 ];
-const KOREAN_HOLIDAYS_BY_DATE: Record<string, string> = {
-  "2026-01-01": "신정",
-  "2026-02-16": "설날",
-  "2026-02-17": "설날",
-  "2026-02-18": "설날",
-  "2026-03-01": "삼일절",
-  "2026-03-02": "삼일절 대체공휴일",
-  "2026-05-05": "어린이날",
-  "2026-05-24": "부처님오신날",
-  "2026-05-25": "부처님오신날 대체공휴일",
-  "2026-06-03": "지방선거",
-  "2026-06-06": "현충일",
-  "2026-08-15": "광복절",
-  "2026-08-17": "광복절 대체공휴일",
-  "2026-09-24": "추석",
-  "2026-09-25": "추석",
-  "2026-09-26": "추석",
-  "2026-10-03": "개천절",
-  "2026-10-05": "개천절 대체공휴일",
-  "2026-10-09": "한글날",
-  "2026-12-25": "성탄절",
-};
-
 export function WorkDiaryGrid({
   initialRows,
   initialDestinations,
@@ -2037,7 +2015,7 @@ function formatSelectedDateLabel(value: string) {
 
 function getMobileDateLabelClass(value: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return "text-[#0d1b3d]";
-  if (isHoliday(value) || weekdayLabel(value) === "일") return "text-[#dc2626]";
+  if (isKoreanHoliday(value) || weekdayLabel(value) === "일") return "text-[#dc2626]";
   if (weekdayLabel(value) === "토") return "text-[#2563eb]";
   return "text-[#0d1b3d]";
 }
@@ -2045,32 +2023,20 @@ function getMobileDateLabelClass(value: string) {
 function weekdayLabel(value: unknown) {
   const text = String(value ?? "");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return "";
-  const date = new Date(`${text}T00:00:00`);
-  return ["일", "월", "화", "수", "목", "금", "토"][date.getDay()];
+  return getKoreanWeekday(text);
 }
 
 function getDateCellClass(value: unknown) {
   const text = String(value ?? "");
   const baseClass = "erp-grid-cell erp-grid-cell-date";
   if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return baseClass;
-  if (isHoliday(text) || weekdayLabel(text) === "일") {
+  if (isKoreanHoliday(text) || weekdayLabel(text) === "일") {
     return `${baseClass} work-diary-date-red`;
   }
   if (weekdayLabel(text) === "토") {
     return `${baseClass} work-diary-date-blue`;
   }
   return baseClass;
-}
-
-function isHoliday(value: string) {
-  if (KOREAN_HOLIDAYS_BY_DATE[value]) {
-    return true;
-  }
-
-  const [, month, day] = value.split("-");
-  return new Set(["01-01", "03-01", "05-05", "06-06", "08-15", "10-03", "10-09", "12-25"]).has(
-    `${month}-${day}`,
-  );
 }
 
 function clamp(value: number, min: number, max: number) {

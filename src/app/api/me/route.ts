@@ -35,10 +35,15 @@ export async function PATCH(request: Request) {
 
     const body = profileUpdateSchema.parse(await request.json());
     const { currentPassword, password, ...profileBody } = body;
+    const hasProfileImageUrl = Object.hasOwn(profileBody, "profileImageUrl");
     const patch = {
       ...profileBody,
-      ...(Object.hasOwn(profileBody, "profileImageUrl")
-        ? { profileImageUrl: normalizeProfileImageUrl(profileBody.profileImageUrl) }
+      ...(hasProfileImageUrl
+        ? {
+            profileImageUrl: normalizeProfileImageUrl(profileBody.profileImageUrl),
+            profileImageData: null,
+            profileImageContentType: null,
+          }
         : {}),
       ...(password ? { passwordHash: hashPassword(password) } : {}),
     };
@@ -46,7 +51,7 @@ export async function PATCH(request: Request) {
     if (!hasDatabaseUrl()) {
       const publicPatch = {
         ...profileBody,
-        ...(Object.hasOwn(profileBody, "profileImageUrl")
+        ...(hasProfileImageUrl
           ? { profileImageUrl: normalizeProfileImageUrl(profileBody.profileImageUrl) }
           : {}),
       };

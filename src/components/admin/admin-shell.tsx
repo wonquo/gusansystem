@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FormEvent, useEffect, useMemo, useState, useSyncExternalStore, useTransition } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState, useSyncExternalStore, useTransition } from "react";
 import {
   BookOpenText,
   CalendarDays,
@@ -69,6 +69,8 @@ const DESKTOP_VIEW_STORAGE_KEY = "guesan-desktop-view";
 const DESKTOP_VIEW_CHANGE_EVENT = "guesan-desktop-view-change";
 const DESKTOP_VIEWPORT_CONTENT = "width=1280, initial-scale=0.3, maximum-scale=2, user-scalable=yes";
 const MOBILE_VIEWPORT_CONTENT = "width=device-width, initial-scale=1";
+const MAX_PROFILE_IMAGE_BYTES = 2 * 1024 * 1024;
+const PROFILE_IMAGE_ACCEPT = "image/jpeg,image/png,image/webp,image/gif";
 
 export function AdminShell({
   user,
@@ -248,23 +250,83 @@ function AccountMenu({
   const [form, setForm] = useState({
     name: user.name,
     email: user.email,
-    profileImageUrl: user.profileImageUrl ?? "",
     currentPassword: "",
     password: "",
   });
+  const [profileImageFile, setProfileImageFile] = useState<File | null>(null);
+  const [profileImagePreviewUrl, setProfileImagePreviewUrl] = useState<string | null>(null);
+  const [shouldRemoveProfileImage, setShouldRemoveProfileImage] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const profileImageInputRef = useRef<HTMLInputElement>(null);
+  const profileImageObjectUrlRef = useRef<string | null>(null);
+
+  useEffect(
+    () => () => {
+      if (profileImageObjectUrlRef.current) {
+        URL.revokeObjectURL(profileImageObjectUrlRef.current);
+      }
+    },
+    [],
+  );
+
+  function clearProfileImagePreview() {
+    if (profileImageObjectUrlRef.current) {
+      URL.revokeObjectURL(profileImageObjectUrlRef.current);
+      profileImageObjectUrlRef.current = null;
+    }
+    setProfileImagePreviewUrl(null);
+  }
+
+  function resetProfileImageChange() {
+    setProfileImageFile(null);
+    setShouldRemoveProfileImage(false);
+    clearProfileImagePreview();
+    if (profileImageInputRef.current) {
+      profileImageInputRef.current.value = "";
+    }
+  }
 
   function openProfileDialog() {
     setForm({
       name: user.name,
       email: user.email,
-      profileImageUrl: user.profileImageUrl ?? "",
       currentPassword: "",
       password: "",
     });
+    resetProfileImageChange();
     setError(null);
     setIsProfileOpen(true);
+  }
+
+  function selectProfileImage(file: File | null) {
+    if (!file) {
+      return;
+    }
+    if (!PROFILE_IMAGE_ACCEPT.split(",").includes(file.type)) {
+      resetProfileImageChange();
+      setError("JPG, PNG, WebP, GIF 형식의 이미지만 올릴 수 있습니다.");
+      return;
+    }
+    if (file.size === 0 || file.size > MAX_PROFILE_IMAGE_BYTES) {
+      resetProfileImageChange();
+      setError("프로필 사진은 2MB 이하로 올려 주세요.");
+      return;
+    }
+
+    clearProfileImagePreview();
+    const previewUrl = URL.createObjectURL(file);
+    profileImageObjectUrlRef.current = previewUrl;
+    setProfileImagePreviewUrl(previewUrl);
+    setProfileImageFile(file);
+    setShouldRemoveProfileImage(false);
+    setError(null);
+  }
+
+  function removeProfileImage() {
+    resetProfileImageChange();
+    setShouldRemoveProfileImage(true);
+    setError(null);
   }
 
   function saveProfile(event: FormEvent<HTMLFormElement>) {
@@ -278,7 +340,6 @@ function AccountMenu({
         body: JSON.stringify({
           name: form.name,
           email: form.email,
-          profileImageUrl: form.profileImageUrl,
           ...(form.password.trim()
             ? { currentPassword: form.currentPassword, password: form.password }
             : {}),
@@ -291,8 +352,35 @@ function AccountMenu({
         return;
       }
 
-      onUserChange(data.user);
+      let nextUser = data.user as AppUserRow;
+      if (profileImageFile) {
+        const uploadData = new FormData();
+        uploadData.set("profileImage", profileImageFile);
+        const imageResponse = await fetch(`/api/users/${encodeURIComponent(user.id)}/profile-image`, {
+          method: "POST",
+          body: uploadData,
+        });
+        const imageData = await imageResponse.json();
+        if (!imageResponse.ok) {
+          setError(imageData.error ?? "프로필 사진을 저장하지 못했습니다.");
+          return;
+        }
+        nextUser = imageData.user;
+      } else if (shouldRemoveProfileImage && user.profileImageUrl) {
+        const imageResponse = await fetch(`/api/users/${encodeURIComponent(user.id)}/profile-image`, {
+          method: "DELETE",
+        });
+        const imageData = await imageResponse.json();
+        if (!imageResponse.ok) {
+          setError(imageData.error ?? "프로필 사진을 삭제하지 못했습니다.");
+          return;
+        }
+        nextUser = imageData.user;
+      }
+
+      onUserChange(nextUser);
       setForm((current) => ({ ...current, currentPassword: "", password: "" }));
+      resetProfileImageChange();
       setIsProfileOpen(false);
     });
   }
@@ -364,7 +452,9 @@ function AccountMenu({
               user={{
                 ...user,
                 name: form.name || user.name,
-                profileImageUrl: form.profileImageUrl || null,
+                profileImageUrl:
+                  profileImagePreviewUrl ?? (shouldRemoveProfileImage ? null : user.profileImageUrl),
+                updatedAt: profileImagePreviewUrl ? null : user.updatedAt,
               }}
               className="size-14"
             />
@@ -400,16 +490,20 @@ function AccountMenu({
               />
             </div>
             <div className="grid gap-1.5">
-              <Label htmlFor="profile-image-url">프로필 사진 URL</Label>
+              <Label htmlFor="profile-image-file">프로필 사진</Label>
               <Input
-                id="profile-image-url"
-                type="url"
-                value={form.profileImageUrl}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, profileImageUrl: event.target.value }))
-                }
-                placeholder="https://example.com/profile.jpg"
+                ref={profileImageInputRef}
+                id="profile-image-file"
+                type="file"
+                accept={PROFILE_IMAGE_ACCEPT}
+                onChange={(event) => selectProfileImage(event.target.files?.[0] ?? null)}
               />
+              <p className="text-xs text-[#69758a]">JPG, PNG, WebP, GIF · 최대 2MB</p>
+              {(user.profileImageUrl || profileImageFile) && !shouldRemoveProfileImage ? (
+                <Button type="button" variant="outline" size="sm" onClick={removeProfileImage}>
+                  기본 이미지로 변경
+                </Button>
+              ) : null}
             </div>
             <div className="grid gap-1.5">
               <Label htmlFor="profile-current-password">현재 비밀번호</Label>

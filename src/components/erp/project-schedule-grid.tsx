@@ -180,20 +180,6 @@ export function ProjectScheduleGrid({
 
   const columnDefs = useMemo<ColDef<ProjectScheduleRow>[]>(() => {
     const common: ColDef<ProjectScheduleRow>[] = [
-      {
-        colId: "rowNumber",
-        headerName: "No",
-        width: 56,
-        minWidth: 56,
-        maxWidth: 56,
-        pinned: "left",
-        sortable: false,
-        filter: false,
-        resizable: false,
-        suppressMovable: true,
-        cellClass: "erp-grid-cell erp-grid-cell-row-number",
-        valueGetter: (params) => (params.node?.rowIndex ?? 0) + 1,
-      },
       { field: "projectCode", headerName: "관리번호", width: 120 },
       { field: "projectName", headerName: "프로젝트", width: 260 },
       { field: "taskDescription", headerName: "업무내용", width: 340 },
@@ -609,7 +595,7 @@ export function ProjectScheduleGrid({
       </section>
 
       <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-        <DialogContent className="flex max-h-[calc(100vh-24px)] w-[calc(100vw-20px)] !max-w-[1078px] flex-col overflow-hidden p-0 sm:max-h-[92vh] xl:w-[70vw]">
+        <DialogContent className="!flex h-[calc(100dvh-24px)] max-h-[calc(100dvh-24px)] w-[calc(100vw-20px)] !max-w-[1078px] flex-col overflow-hidden p-0 sm:h-auto sm:max-h-[92dvh] xl:w-[70vw]">
           <DialogHeader className="shrink-0 border-b border-[#d8e0ea] bg-[#f8fafc] px-4 py-3">
             <DialogTitle className="text-sm text-[#0d1b3d]">
               {selected?.__isNew ? "신규 프로젝트" : "프로젝트 상세"}
@@ -1042,7 +1028,7 @@ function ProjectScheduleDetail({
                   value={taskDescription}
                   onChange={(event) => setTaskDescription(event.target.value)}
                   disabled={!editable}
-                  rows={1}
+                  rows={3}
                   placeholder="업무내용을 입력하세요"
                   className="min-h-8 resize-y border-transparent bg-transparent px-0 py-1 leading-5 shadow-none focus-visible:border-[#2f70dc] focus-visible:px-2"
                 />

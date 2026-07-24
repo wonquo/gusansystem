@@ -35,6 +35,8 @@ export const appUsers = pgTable(
     email: text("email").notNull(),
     name: text("name").notNull(),
     profileImageUrl: text("profile_image_url"),
+    profileImageData: text("profile_image_data"),
+    profileImageContentType: text("profile_image_content_type"),
     role: userRoleEnum("role").notNull().default("employee"),
     status: userStatusEnum("status").notNull().default("active"),
     lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
