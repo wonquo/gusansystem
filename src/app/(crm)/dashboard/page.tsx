@@ -25,11 +25,16 @@ function getEventColorClass(category: string) {
   return EVENT_COLORS[category] ?? FALLBACK_EVENT_COLOR;
 }
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ calendarMonth?: string | string[] }>;
+}) {
   const user = await requireAppUser();
   const today = getKoreaDateValue();
-  const monthStart = today.slice(0, 7);
-  const workDiaryMonth = monthStart;
+  const currentMonth = today.slice(0, 7);
+  const calendarMonth = parseDashboardCalendarMonth((await searchParams).calendarMonth) ?? currentMonth;
+  const workDiaryMonth = currentMonth;
   const [boardPosts, calendarEvents, workDiaryRows, whiteboardState] = await Promise.all([
     listBoardPosts(),
     listCalendarEvents(),
@@ -42,7 +47,9 @@ export default async function DashboardPage() {
     }),
     getWhiteboardState(),
   ]);
-  const monthCells = createMonthCells(monthStart);
+  const monthCells = createMonthCells(calendarMonth);
+  const previousCalendarMonth = shiftMonth(calendarMonth, -1);
+  const nextCalendarMonth = shiftMonth(calendarMonth, 1);
   const selectedEvents = calendarEvents
     .filter((event) => event.startDate <= today && event.endDate >= today)
     .sort(compareCalendarEvents);
@@ -89,26 +96,26 @@ export default async function DashboardPage() {
             <h2 className="text-lg font-bold tracking-normal text-[#171b26]">캘린더</h2>
             <div className="flex items-center gap-3">
               <Link
-                href="/calendar"
+                href={getDashboardCalendarHref(currentMonth, currentMonth)}
                 className="whitespace-nowrap rounded-md border border-[#e4e9f0] px-3 py-1.5 text-xs font-bold text-[#373f4f] shadow-sm transition hover:border-[#cbd5e1] hover:bg-[#f8fafc]"
               >
                 오늘
               </Link>
               <div className="flex items-center gap-3">
                 <Link
-                  href="/calendar"
+                  href={getDashboardCalendarHref(previousCalendarMonth, currentMonth)}
                   className="text-[#4b5565] transition hover:text-[#1f6fff]"
-                  aria-label="캘린더로 이동"
+                  aria-label={`${formatMonthTitle(previousCalendarMonth)} 보기`}
                 >
                   <ChevronLeft className="size-4" />
                 </Link>
                 <p className="min-w-[96px] text-center text-base font-bold text-[#202838]">
-                  {formatMonthTitle(monthStart)}
+                  {formatMonthTitle(calendarMonth)}
                 </p>
                 <Link
-                  href="/calendar"
+                  href={getDashboardCalendarHref(nextCalendarMonth, currentMonth)}
                   className="text-[#4b5565] transition hover:text-[#1f6fff]"
-                  aria-label="캘린더로 이동"
+                  aria-label={`${formatMonthTitle(nextCalendarMonth)} 보기`}
                 >
                   <ChevronRight className="size-4" />
                 </Link>
@@ -443,6 +450,31 @@ function createMonthCells(monthValue: string): MonthCell[] {
   }
 
   return cells;
+}
+
+function parseDashboardCalendarMonth(value: string | string[] | undefined) {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const match = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(value);
+  if (!match) {
+    return null;
+  }
+
+  const year = Number(match[1]);
+  return year >= 1900 && year <= 9999 ? value : null;
+}
+
+function shiftMonth(value: string, offset: number) {
+  const [year, month] = value.split("-").map(Number);
+  const target = new Date(year, month - 1 + offset, 1);
+
+  return `${target.getFullYear()}-${String(target.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function getDashboardCalendarHref(month: string, currentMonth: string) {
+  return month === currentMonth ? "/dashboard" : `/dashboard?calendarMonth=${month}`;
 }
 
 function eventsForDate(events: CalendarEventRow[], dateValue: string) {
