@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, useTransition, type DragEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition, type DragEvent, type ReactNode } from "react";
 import { AgGridReact } from "ag-grid-react";
 import {
   AllCommunityModule,
@@ -11,6 +11,7 @@ import {
 } from "ag-grid-community";
 import {
   CalendarDays,
+  CheckCircle2,
   CircleAlert,
   ClipboardList,
   FileDown,
@@ -149,8 +150,19 @@ export function ProjectScheduleGrid({
   const [isFileDragging, setIsFileDragging] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [isDownloadingTemplate, setIsDownloadingTemplate] = useState(false);
+  const [saveNotice, setSaveNotice] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const saveNoticeTimeoutRef = useRef<number | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  useEffect(
+    () => () => {
+      if (saveNoticeTimeoutRef.current !== null) {
+        window.clearTimeout(saveNoticeTimeoutRef.current);
+      }
+    },
+    [],
+  );
 
   const activeRows = rowsByType[activeType];
   const statusByLabel = useMemo(
@@ -308,6 +320,17 @@ export function ProjectScheduleGrid({
     setErrors([]);
     if (fileInputRef.current) fileInputRef.current.value = "";
     setIsUploadOpen(true);
+  }
+
+  function showSaveNotice(message: string) {
+    setSaveNotice(message);
+    if (saveNoticeTimeoutRef.current !== null) {
+      window.clearTimeout(saveNoticeTimeoutRef.current);
+    }
+    saveNoticeTimeoutRef.current = window.setTimeout(() => {
+      setSaveNotice(null);
+      saveNoticeTimeoutRef.current = null;
+    }, 2800);
   }
 
   function selectUploadFile(nextFile: File | null) {
@@ -617,6 +640,7 @@ export function ProjectScheduleGrid({
               removeRow={removeRow}
               statusOptions={statusOptions}
               onClose={() => setIsDetailOpen(false)}
+              onSaved={() => showSaveNotice(selected.__isNew ? "프로젝트가 등록되었습니다." : "프로젝트가 저장되었습니다.")}
             />
           ) : null}
         </DialogContent>
@@ -777,6 +801,17 @@ export function ProjectScheduleGrid({
           </DialogContent>
         </Dialog>
       ) : null}
+
+      {saveNotice ? (
+        <div
+          role="status"
+          aria-live="polite"
+          className="pointer-events-none fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] left-1/2 z-[70] flex w-[calc(100vw-2rem)] max-w-sm -translate-x-1/2 items-center gap-2 rounded-xl border border-[#bfe1c9] bg-white px-4 py-3 text-sm font-semibold text-[#166534] shadow-[0_16px_36px_rgba(15,43,27,0.18)]"
+        >
+          <CheckCircle2 className="size-5 shrink-0 text-[#16a34a]" />
+          <span>{saveNotice}</span>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -826,6 +861,7 @@ function ProjectScheduleDetail({
   removeRow,
   statusOptions,
   onClose,
+  onSaved,
 }: {
   row: ProjectScheduleRow;
   permissions: Permissions;
@@ -833,6 +869,7 @@ function ProjectScheduleDetail({
   removeRow: (id: string, type: ProjectType) => void;
   statusOptions: ProjectScheduleStatusOptionRow[];
   onClose: () => void;
+  onSaved: () => void;
 }) {
   const isNew = row.__isNew === true;
   const editable = isNew ? permissions.canCreate : permissions.canUpdate;
@@ -853,6 +890,52 @@ function ProjectScheduleDetail({
     () => buildSelectableStatusOptions(statusOptions, status),
     [status, statusOptions],
   );
+  const payload = useMemo(
+    () => ({
+      projectType: row.projectType,
+      projectCode,
+      projectName,
+      taskDescription,
+      destinationName,
+      controlManagerName,
+      facilityManagerName,
+      managerName: row.projectType === "main" ? combineManagerNames(controlManagerName, facilityManagerName) : managerName,
+      projectMonth,
+      status,
+      expenseMemo: row.expenseMemo,
+      expenseAmount: row.expenseAmount,
+      memo,
+      items: items.map((item, index) => ({
+        scheduleDate: item.scheduleDate,
+        scheduleText: item.scheduleText,
+        taskDescription: item.taskDescription,
+        managerName: item.managerName,
+        status: item.status,
+        memo: item.memo,
+        sourceLineNumber: item.sourceLineNumber || index + 1,
+        sortOrder: index,
+      })),
+    }),
+    [
+      controlManagerName,
+      destinationName,
+      facilityManagerName,
+      items,
+      managerName,
+      memo,
+      projectCode,
+      projectMonth,
+      projectName,
+      row.expenseAmount,
+      row.expenseMemo,
+      row.projectType,
+      status,
+      taskDescription,
+    ],
+  );
+  const payloadSnapshot = useMemo(() => JSON.stringify(payload), [payload]);
+  const [savedPayloadSnapshot, setSavedPayloadSnapshot] = useState(payloadSnapshot);
+  const isDirty = payloadSnapshot !== savedPayloadSnapshot;
 
   function addItem() {
     const mainManagerName = combineManagerNames(controlManagerName, facilityManagerName);
@@ -884,31 +967,6 @@ function ProjectScheduleDetail({
     if (isPending) return;
     setError(null);
     setIsPending(true);
-    const payload = {
-      projectType: row.projectType,
-      projectCode,
-      projectName,
-      taskDescription,
-      destinationName,
-      controlManagerName,
-      facilityManagerName,
-      managerName: row.projectType === "main" ? combineManagerNames(controlManagerName, facilityManagerName) : managerName,
-      projectMonth,
-      status,
-      expenseMemo: row.expenseMemo,
-      expenseAmount: row.expenseAmount,
-      memo,
-      items: items.map((item, index) => ({
-        scheduleDate: item.scheduleDate,
-        scheduleText: item.scheduleText,
-        taskDescription: item.taskDescription,
-        managerName: item.managerName,
-        status: item.status,
-        memo: item.memo,
-        sourceLineNumber: item.sourceLineNumber || index + 1,
-        sortOrder: index,
-      })),
-    };
     try {
       const response = await fetch("/api/project-schedules", {
         method: isNew ? "POST" : "PATCH",
@@ -928,6 +986,8 @@ function ProjectScheduleDetail({
         return;
       }
       replaceRow(data.row);
+      setSavedPayloadSnapshot(payloadSnapshot);
+      onSaved();
     } catch (error) {
       setError(error instanceof Error ? error.message : "프로젝트 저장 중 오류가 발생했습니다.");
     } finally {
@@ -1193,7 +1253,7 @@ function ProjectScheduleDetail({
           )}
           <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
             {editable ? (
-              <Button type="button" size="sm" className="h-11 w-full bg-[#0f4cad] shadow-[0_8px_18px_rgba(15,76,173,0.22)] hover:bg-[#0d4192] sm:h-10 sm:w-auto sm:px-5" onClick={save} disabled={isPending || !projectName.trim()}>
+              <Button type="button" size="sm" className="h-11 w-full bg-[#0f4cad] shadow-[0_8px_18px_rgba(15,76,173,0.22)] hover:bg-[#0d4192] sm:h-10 sm:w-auto sm:px-5" onClick={save} disabled={isPending || !projectName.trim() || !isDirty}>
                 {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
                 {isNew ? "등록" : "저장"}
               </Button>
