@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, useTransition, type DragEvent } from "react";
+import { useMemo, useRef, useState, type DragEvent } from "react";
 import {
   Building2,
   CalendarDays,
@@ -109,7 +109,7 @@ export function ProjectDetail({
   const [editingCell, setEditingCell] = useState<{ localId: string; field: EditableItemField } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const attachmentInputRef = useRef<HTMLInputElement | null>(null);
-  const [isPending, startTransition] = useTransition();
+  const [isPending, setIsPending] = useState(false);
 
   const totals = useMemo(
     () => ({
@@ -208,9 +208,11 @@ export function ProjectDetail({
     setAttachments((currentAttachments) => currentAttachments.filter((attachment) => attachment.id !== id));
   }
 
-  function saveProject() {
+  async function saveProject() {
+    if (isPending) return;
     setError(null);
-    startTransition(async () => {
+    setIsPending(true);
+    try {
       const payload = {
         projectName,
         clientName,
@@ -238,32 +240,49 @@ export function ProjectDetail({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(isNewProject ? payload : { id: row.id, ...payload }),
       });
-      const data = await response.json();
+      const data = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        row?: Record<string, unknown>;
+      };
       if (!response.ok) {
         setError(data.error ?? (isNewProject ? "프로젝트 등록에 실패했습니다." : "프로젝트 저장에 실패했습니다."));
         return;
       }
+      if (!data.row) {
+        setError("저장 결과를 불러오지 못했습니다. 목록을 새로고침한 뒤 다시 시도해주세요.");
+        return;
+      }
       helpers.replaceRow(data.row);
       onClose();
-    });
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "프로젝트 저장 중 오류가 발생했습니다.");
+    } finally {
+      setIsPending(false);
+    }
   }
 
-  function deleteCurrentProject() {
+  async function deleteCurrentProject() {
     if (!window.confirm("선택한 프로젝트를 삭제할까요? 상세 항목도 함께 삭제됩니다.")) {
       return;
     }
+    if (isPending) return;
     setError(null);
-    startTransition(async () => {
+    setIsPending(true);
+    try {
       const response = await fetch(`/api/projects?id=${encodeURIComponent(String(row.id))}`, {
         method: "DELETE",
       });
-      const data = await response.json();
+      const data = (await response.json().catch(() => ({}))) as { error?: string };
       if (!response.ok) {
         setError(data.error ?? "프로젝트 삭제에 실패했습니다.");
         return;
       }
       helpers.removeRow(String(row.id));
-    });
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "프로젝트 삭제 중 오류가 발생했습니다.");
+    } finally {
+      setIsPending(false);
+    }
   }
 
   return (
