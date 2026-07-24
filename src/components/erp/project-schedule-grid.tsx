@@ -558,10 +558,16 @@ export function ProjectScheduleGrid({
             rowSelection="single"
             animateRows={false}
             theme="legacy"
+            getRowId={(params) => params.data.id}
             onGridReady={(event: GridReadyEvent<ProjectScheduleRow>) => {
               if (filteredRows.length) event.api.getDisplayedRowAtIndex(0)?.setSelected(true);
             }}
-            onSelectionChanged={(event) => setSelected(event.api.getSelectedRows()[0] ?? null)}
+            onSelectionChanged={(event) => {
+              const nextSelected = event.api.getSelectedRows()[0] ?? null;
+              if (nextSelected || !isDetailOpen) {
+                setSelected(nextSelected);
+              }
+            }}
             onCellDoubleClicked={(event) => {
               if (event.data) {
                 setSelected(event.data);
@@ -842,7 +848,7 @@ function ProjectScheduleDetail({
   const [memo, setMemo] = useState(String(row.memo ?? ""));
   const [items, setItems] = useState<DraftItem[]>(() => toDraftItems(row.items));
   const [error, setError] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
+  const [isPending, setIsPending] = useState(false);
   const selectableStatusOptions = useMemo(
     () => buildSelectableStatusOptions(statusOptions, status),
     [status, statusOptions],
@@ -874,8 +880,10 @@ function ProjectScheduleDetail({
     setItems((current) => current.filter((item) => item.localId !== localId));
   }
 
-  function save() {
+  async function save() {
+    if (isPending) return;
     setError(null);
+    setIsPending(true);
     const payload = {
       projectType: row.projectType,
       projectCode,
@@ -901,37 +909,54 @@ function ProjectScheduleDetail({
         sortOrder: index,
       })),
     };
-    startTransition(async () => {
+    try {
       const response = await fetch("/api/project-schedules", {
         method: isNew ? "POST" : "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(isNew ? payload : { id: row.id, ...payload }),
       });
-      const data = await response.json();
+      const data = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        row?: ProjectScheduleRow;
+      };
       if (!response.ok) {
         setError(data.error ?? "프로젝트 저장에 실패했습니다.");
         return;
       }
+      if (!data.row) {
+        setError("저장 결과를 불러오지 못했습니다. 목록을 새로고침한 뒤 다시 시도해주세요.");
+        return;
+      }
       replaceRow(data.row);
-    });
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "프로젝트 저장 중 오류가 발생했습니다.");
+    } finally {
+      setIsPending(false);
+    }
   }
 
-  function deleteCurrent() {
+  async function deleteCurrent() {
     if (!window.confirm("선택한 프로젝트를 삭제할까요? 일정도 함께 삭제됩니다.")) {
       return;
     }
+    if (isPending) return;
     setError(null);
-    startTransition(async () => {
+    setIsPending(true);
+    try {
       const response = await fetch(`/api/project-schedules?id=${encodeURIComponent(row.id)}`, {
         method: "DELETE",
       });
-      const data = await response.json();
+      const data = (await response.json().catch(() => ({}))) as { error?: string };
       if (!response.ok) {
         setError(data.error ?? "프로젝트 삭제에 실패했습니다.");
         return;
       }
       removeRow(row.id, row.projectType);
-    });
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "프로젝트 삭제 중 오류가 발생했습니다.");
+    } finally {
+      setIsPending(false);
+    }
   }
 
   return (
